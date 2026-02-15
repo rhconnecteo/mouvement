@@ -1,9 +1,11 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbzPFyqBSJgYoyyNxECF9z_wmMuK8rrCNRiiAQFH2gUsr7AyM-9aKKw8Xdsiw_wAN1sl/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbysuA2KIeL1vQ2N5dQ17o5ai6ayElOkIE7NlAUNDTDp2-V_zNwYpzNeL6WP4vlmPvIC/exec";
+
 
 let employes = [];
 let motifsDepart = [];
 let motifsMouvement = [];
 let dataLoaded = false;
+let isSubmitting = false; // Flag pour éviter les envois multiples
 
 // =============================
 // LOAD DATA (POST ONLY)
@@ -139,6 +141,7 @@ async function showDepart() {
 
       <label for="raison">Raison <span style="color: red;">*</span></label>
       <textarea id="raison" placeholder="Détails de la raison" onchange="validateRaisonDepart()"></textarea>
+      <div id="raisonMsg" style="font-size: 12px; color: #666; margin-top: 5px;">* Obligatoire pour Démission et Licenciement</div>
 
       <br><button type="submit">📝 Envoyer</button>
     </form>
@@ -280,6 +283,9 @@ function validateRaisonDepart() {
   const raisonField = document.getElementById('raison');
   const raisonMsg = document.getElementById('raisonMsg');
 
+  // Vérifier que l'élément existe avant d'y accéder
+  if (!raisonMsg) return;
+
   if ((motif === "Démission" || motif === "Licenciement")) {
     // Si motif est Démission ou Licenciement, raison est OBLIGATOIRE
     if (raison === "") {
@@ -368,7 +374,7 @@ function showRecapDepart() {
         </div>
 
         <div class="modal-buttons">
-          <button class="btn-confirm" onclick="confirmDepart()">✔️ Confirmer</button>
+          <button class="btn-confirm" id="confirmBtn" onclick="confirmDepart()">✔️ Confirmer</button>
           <button class="btn-cancel" onclick="cancelRecap()">❌ Annuler</button>
         </div>
       </div>
@@ -379,6 +385,18 @@ function showRecapDepart() {
 }
 
 function confirmDepart() {
+  // Empêcher les envois multiples
+  if (isSubmitting) return;
+  isSubmitting = true;
+  
+  // Désactiver le bouton
+  const confirmBtn = document.getElementById('confirmBtn');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.5';
+    confirmBtn.style.cursor = 'not-allowed';
+  }
+
   const formData = new FormData();
   formData.append("type", "depart");
   formData.append("hrbp", document.getElementById('hrbp').value);
@@ -402,8 +420,12 @@ function confirmDepart() {
           location.reload();
         }, 2000);
       }
+      isSubmitting = false;
     })
-    .catch(err => console.error("Erreur : " + err.message));
+    .catch(err => {
+      console.error("Erreur : " + err.message);
+      isSubmitting = false;
+    });
 }
 
 // =============================
@@ -468,7 +490,7 @@ function showRecapMouvement() {
         </div>
 
         <div class="modal-buttons">
-          <button class="btn-confirm" onclick="confirmMouvement()">✔️ Confirmer</button>
+          <button class="btn-confirm" id="confirmBtn" onclick="confirmMouvement()">✔️ Confirmer</button>
           <button class="btn-cancel" onclick="cancelRecap()">❌ Annuler</button>
         </div>
       </div>
@@ -479,6 +501,18 @@ function showRecapMouvement() {
 }
 
 function confirmMouvement() {
+  // Empêcher les envois multiples
+  if (isSubmitting) return;
+  isSubmitting = true;
+  
+  // Désactiver le bouton
+  const confirmBtn = document.getElementById('confirmBtn');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.5';
+    confirmBtn.style.cursor = 'not-allowed';
+  }
+
   const formData = new FormData();
   formData.append("type", "mouvement");
   formData.append("hrbp", document.getElementById('hrbp').value);
@@ -503,8 +537,12 @@ function confirmMouvement() {
           location.reload();
         }, 2000);
       }
+      isSubmitting = false;
     })
-    .catch(err => console.error("Erreur : " + err.message));
+    .catch(err => {
+      console.error("Erreur : " + err.message);
+      isSubmitting = false;
+    });
 }
 
 document.addEventListener("DOMContentLoaded", loadData);
