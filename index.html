@@ -2,23 +2,45 @@
 <html>
 <head>
   <title>Mouvement de notre Collaborateur</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/png" href="mouvement.png">
 </head>
 <body>
 
-  <div class="container">
-    <h2>Mouvement de notre Collaborateur</h2>
-
-    <div class="menu">
-      <button onclick="showDepart()">Départ</button>
-      <button onclick="showMouvement()">Mouvement</button>
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h1>Gestion RH</h1>
+      <button class="toggle-btn" onclick="toggleSidebar()">
+        <i class="fas fa-chevron-left"></i>
+      </button>
     </div>
 
-    <div id="formContainer"></div>
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" id="btn-depart" onclick="showDepart()">
+        <i class="fas fa-sign-out-alt"></i>
+        <span>Départ</span>
+      </button>
+      <button class="nav-btn" id="btn-mouvement" onclick="showMouvement()">
+        <i class="fas fa-exchange-alt"></i>
+        <span>Mouvement</span>
+      </button>
+    </nav>
   </div>
-  <!-- Merci mon Dieu -->
 
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+    <div class="header">
+      <h2>Mouvement de notre Collaborateur</h2>
+    </div>
+
+    <div class="form-wrapper">
+      <div id="formContainer"></div>
+    </div>
+  </div>
+
+  <!-- Merci mon Dieu -->
   <script src="script.js"></script>
 </body>
 </html>

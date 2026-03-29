@@ -1,8 +1,38 @@
+// =============================
+// INITIALIZE ON PAGE LOAD
+// =============================
+window.addEventListener('load', async function() {
+  await loadData();
+  // Attendre un petit peu pour que les données soient chargées
+  setTimeout(() => {
+    showDepart();
+  }, 500);
+});
+
+// =============================
+// TOGGLE SIDEBAR
+// =============================
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) {
+    sidebar.classList.toggle('collapsed');
+  }
+}
+
 const API_URL = "https://script.google.com/macros/s/AKfycbysuA2KIeL1vQ2N5dQ17o5ai6ayElOkIE7NlAUNDTDp2-V_zNwYpzNeL6WP4vlmPvIC/exec";
 
 
 let employes = [];
-let motifsDepart = [];
+let motifsDepart = [
+
+  "Congé de maternité",
+  "Abandon de poste",
+  "Abandon de formation","Arrêt de contrat","Décès","Fin de période d'essai","Mobilité intra groupe",
+  "Démission",
+  "Licenciement",
+  "Fin de projet",
+  "Fin de campagne"
+];
 let motifsMouvement = [];
 let dataLoaded = false;
 let isSubmitting = false; // Flag pour éviter les envois multiples
@@ -26,8 +56,8 @@ function loadData() {
     .then(data => {
       if (data.status === "success") {
         employes = data.employes;
-        motifsDepart = data.motifsDepart;
-        motifsMouvement = data.motifsMouvement;
+        // Garder les motifs par défaut définis
+        // (Ne pas écraser avec les données de l'API)
         dataLoaded = true;
         console.log("✅ Données chargées :", employes.length, "employés");
       } else {
@@ -115,11 +145,13 @@ async function showDepart() {
         <option value="Mamonjisoa">Mamonjisoa</option>
       </select><br>
 
-      <label for="select_employe">Sélectionner Employé :</label>
-      <select id="select_employe" onchange="fillDepartData()" required>
-        <option value="">-- Choisir un employé --</option>
-        ${optionsEmployes}
-      </select><br>
+      <label>Sélectionner Employé :</label>
+      <div class="search-container">
+        <input type="text" id="employeeSearch" class="search-input" placeholder="🔍 Rechercher par matricule ou nom..." onkeyup="filterEmployeeList('depart')">
+        <div id="employeeDropdown" class="employee-dropdown">
+          ${employes.map(emp => `<div class="employee-option" onclick="selectEmployee('depart', '${emp.matricule}|${emp.nom}|${emp.fonction}')">${emp.matricule} - ${emp.nom}</div>`).join('')}
+        </div>
+      </div><br>
 
       <label for="matricule">Matricule :</label>
       <input id="matricule" readonly><br>
@@ -146,15 +178,66 @@ async function showDepart() {
       <br><button type="submit">📝 Envoyer</button>
     </form>
   `;
+  
+  // Stocker les employés pour le filtrage
+  window.employeesDepartList = employes;
 }
 
-function fillDepartData() {
-  const select = document.getElementById("select_employe");
-  const [matricule, nom, fonction] = select.value.split("|");
+// =============================
+// FILTER EMPLOYEE LIST
+// =============================
+function filterEmployeeList(formType) {
+  const searchInput = document.getElementById('employeeSearch');
+  const dropdown = document.getElementById('employeeDropdown');
+  const searchTerm = searchInput.value.toLowerCase();
   
+  const employeeList = formType === 'depart' ? window.employeesDepartList : window.employeesMouvementList;
+  
+  if (searchTerm === '') {
+    // Afficher tous les employés si le champ est vide
+    dropdown.innerHTML = employeeList
+      .map(emp => `<div class="employee-option" onclick="selectEmployee('${formType}', '${emp.matricule}|${emp.nom}|${emp.fonction}')">${emp.matricule} - ${emp.nom}</div>`)
+      .join('');
+  } else {
+    // Filtrer les employés
+    const filtered = employeeList.filter(emp => 
+      emp.matricule.toLowerCase().includes(searchTerm) || 
+      emp.nom.toLowerCase().includes(searchTerm)
+    );
+    
+    if (filtered.length === 0) {
+      dropdown.innerHTML = '<div style="padding: 10px; color: #999;">Aucun employé trouvé</div>';
+    } else {
+      dropdown.innerHTML = filtered
+        .map(emp => `<div class="employee-option" onclick="selectEmployee('${formType}', '${emp.matricule}|${emp.nom}|${emp.fonction}')">${emp.matricule} - ${emp.nom}</div>`)
+        .join('');
+    }
+  }
+  
+  dropdown.style.display = 'block';
+}
+
+// =============================
+// SELECT EMPLOYEE
+// =============================
+function selectEmployee(formType, employeeData) {
+  const [matricule, nom, fonction] = employeeData.split("|");
+  
+  // Remplir les champs
   document.getElementById("matricule").value = matricule;
   document.getElementById("nom").value = nom;
-  document.getElementById("fonction").value = fonction;
+  
+  // Remplir le champ approprié selon le type de formulaire
+  if (formType === 'depart') {
+    document.getElementById("fonction").value = fonction;
+  } else if (formType === 'mouvement') {
+    document.getElementById("ancienPoste").value = fonction;
+    fillMouvementNewPositions();
+  }
+  
+  // Vider la recherche et fermer le dropdown
+  document.getElementById('employeeSearch').value = '';
+  document.getElementById('employeeDropdown').style.display = 'none';
 }
 
 // =============================
@@ -180,10 +263,6 @@ async function showMouvement() {
   // Ajouter classe active au bouton Mouvement
   setActiveButton('mouvement');
   
-  const optionsEmployes = employes
-    .map(emp => `<option value="${emp.matricule}|${emp.nom}|${emp.fonction}">${emp.matricule} - ${emp.nom}</option>`)
-    .join("");
-
   const optionsTypeMvt = motifsMouvement
     .map(motif => `<option value="${motif}">${motif}</option>`)
     .join("");
@@ -209,11 +288,13 @@ async function showMouvement() {
         <option value="Mamonjisoa">Mamonjisoa</option>
       </select><br>
 
-      <label for="select_employe">Sélectionner Employé :</label>
-      <select id="select_employe" onchange="fillMouvementData()" required>
-        <option value="">-- Choisir un employé --</option>
-        ${optionsEmployes}
-      </select><br>
+      <label>Sélectionner Employé :</label>
+      <div class="search-container">
+        <input type="text" id="employeeSearch" class="search-input" placeholder="🔍 Rechercher par matricule ou nom..." onkeyup="filterEmployeeList('mouvement')">
+        <div id="employeeDropdown" class="employee-dropdown">
+          ${employes.map(emp => `<div class="employee-option" onclick="selectEmployee('mouvement', '${emp.matricule}|${emp.nom}|${emp.fonction}')">${emp.matricule} - ${emp.nom}</div>`).join('')}
+        </div>
+      </div><br>
 
       <label for="matricule">Matricule :</label>
       <input id="matricule" readonly><br>
@@ -227,16 +308,38 @@ async function showMouvement() {
       <label for="dateMvt">Date du Mouvement :</label>
       <input type="date" id="dateMvt" required><br>
 
-      <label for="nouveauPoste">Nouvelle Fonction :</label>
-      <select id="nouveauPoste" required>
-        <option value="">-- Choisir une fonction --</option>
+      <label for="typeMvt">Type de Mouvement :</label>
+      <select id="typeMvt" required onchange="handleTypeChangement()">
+        <option value="">-- Choisir un type --</option>
+        <option value="Basculement CDI">Basculement CDI</option>
+        <option value="Basculement CDD">Basculement CDD</option>
+        <option value="Changement d'intitulé">Changement d'intitulé</option>
+        <option value="Nomination au poste">Nomination au poste</option>
+        <option value="Mutation">Mutation</option>
+        <option value="Basculement vers une autre poste">Basculement vers une autre poste</option>
       </select><br>
 
-      <label for="typeMvt">Type de Mouvement :</label>
-      <select id="typeMvt" required>
-        <option value="">-- Choisir un motif --</option>
-        ${optionsTypeMvt}
-      </select><br>
+      <div id="nouvelleFonctionPersonnaliseeDiv" style="display: none;">
+        <label for="nouvelleFonctionPersonnalisee">Nouvelle Fonction Personnalisée :</label>
+        <input type="text" id="nouvelleFonctionPersonnalisee" placeholder="Entrez la nouvelle fonction..." style="margin-bottom: 10px;"><br>
+      </div>
+
+      <div id="selectNouveauPosteDiv">
+        <label for="nouveauPoste">Nouvelle Fonction :</label>
+        <select id="nouveauPoste" required>
+          <option value="">-- Choisir une fonction --</option>
+        </select><br>
+        
+        <div style="display: flex; align-items: center; margin-top: 10px;">
+          <input type="checkbox" id="isFonctionNouvelle" style="width: auto; margin: 0 10px 0 0; cursor: pointer;" onchange="handleFonctionNouvelle()">
+          <label for="isFonctionNouvelle" style="margin: 0; cursor: pointer;">✨ C'est une nouvelle fonction</label>
+        </div><br>
+        
+        <div id="nouvelleFonctionInputDiv" style="display: none;">
+          <label for="nouvelleFonctionNom">Entrez le nom de la nouvelle fonction :</label>
+          <input type="text" id="nouvelleFonctionNom" placeholder="Entrez nouvelle fonction..." style="margin-bottom: 10px;"><br>
+        </div>
+      </div>
 
       <label for="raisonMvt">Raison du Mouvement :</label>
       <textarea id="raisonMvt" placeholder="Détails de la raison"></textarea><br>
@@ -245,32 +348,83 @@ async function showMouvement() {
     </form>
   `;
 
-  // Stocker toutes les fonctions pour utilisation dans fillMouvementData
+  // Stocker les employés et fonctions pour utilisation dans le filtrage
+  window.employeesMouvementList = employes;
   window.allFonctions = allFonctions;
 }
 
-function fillMouvementData() {
-  const select = document.getElementById("select_employe");
-  const [matricule, nom, fonction] = select.value.split("|");
+// =============================
+// HANDLE FONCTION NOUVELLE
+// =============================
+function handleFonctionNouvelle() {
+  const checkbox = document.getElementById('isFonctionNouvelle');
+  const inputDiv = document.getElementById('nouvelleFonctionInputDiv');
+  const inputField = document.getElementById('nouvelleFonctionNom');
+  const selectNouveauPoste = document.getElementById('nouveauPoste');
   
-  document.getElementById("matricule").value = matricule;
-  document.getElementById("nom").value = nom;
-  document.getElementById("ancienPoste").value = fonction;
+  if (checkbox.checked) {
+    // Afficher la zone texte
+    inputDiv.style.display = 'block';
+    inputField.required = true;
+    selectNouveauPoste.required = false;
+    selectNouveauPoste.value = '';
+  } else {
+    // Cacher la zone texte
+    inputDiv.style.display = 'none';
+    inputField.required = false;
+    inputField.value = '';
+    selectNouveauPoste.required = true;
+  }
+}
 
+// =============================
+// HANDLE TYPE CHANGEMENT
+// =============================
+function handleTypeChangement() {
+  const typeMvt = document.getElementById('typeMvt').value;
+  const nouvelleFonctionPersonnaliseeDiv = document.getElementById('nouvelleFonctionPersonnaliseeDiv');
+  const selectNouveauPosteDiv = document.getElementById('selectNouveauPosteDiv');
+  const nouvelleFonctionPersonnalisee = document.getElementById('nouvelleFonctionPersonnalisee');
+  const nouveauPoste = document.getElementById('nouveauPoste');
+  const checkboxDiv = selectNouveauPosteDiv.querySelector('div[style*="flex"]');
+  
+  if (typeMvt === "Changement d'intitulé") {
+    // Afficher le champ personnalisé et cacher le select
+    nouvelleFonctionPersonnaliseeDiv.style.display = 'block';
+    selectNouveauPosteDiv.style.display = 'none';
+    nouvelleFonctionPersonnalisee.required = true;
+    nouveauPoste.required = false;
+  } else {
+    // Afficher le select et cacher le champ personnalisé
+    nouvelleFonctionPersonnaliseeDiv.style.display = 'none';
+    selectNouveauPosteDiv.style.display = 'block';
+    nouvelleFonctionPersonnalisee.required = false;
+    nouveauPoste.required = true;
+  }
+}
+
+// =============================
+// FILL MOUVEMENT NEW POSITIONS
+// =============================
+function fillMouvementNewPositions() {
+  const ancienPoste = document.getElementById("ancienPoste").value;
+  
   // Mettre à jour les options du dropdown "nouveauPoste" en excluant l'ancienPoste
   const nouveauPosteSelect = document.getElementById("nouveauPoste");
-  nouveauPosteSelect.innerHTML = '<option value="">-- Choisir une fonction --</option>';
-  
-  if (window.allFonctions) {
-    window.allFonctions.forEach(fonction_item => {
-      // Exclure la fonction actuelle (ancien poste)
-      if (fonction_item !== fonction) {
-        const option = document.createElement("option");
-        option.value = fonction_item;
-        option.text = fonction_item;
-        nouveauPosteSelect.appendChild(option);
-      }
-    });
+  if (nouveauPosteSelect) {
+    nouveauPosteSelect.innerHTML = '<option value="">-- Choisir une fonction --</option>';
+    
+    if (window.allFonctions) {
+      window.allFonctions.forEach(fonction_item => {
+        // Exclure la fonction actuelle (ancien poste)
+        if (fonction_item !== ancienPoste) {
+          const option = document.createElement("option");
+          option.value = fonction_item;
+          option.text = fonction_item;
+          nouveauPosteSelect.appendChild(option);
+        }
+      });
+    }
   }
 }
 
@@ -442,9 +596,20 @@ function showRecapMouvement() {
   const nom = document.getElementById('nom').value;
   const dateMvt = document.getElementById('dateMvt').value;
   const ancienPoste = document.getElementById('ancienPoste').value;
-  const nouveauPoste = document.getElementById('nouveauPoste').value;
   const typeMvt = document.getElementById('typeMvt').value;
   const raisonMvt = document.getElementById('raisonMvt').value;
+  const isFonctionNouvelle = document.getElementById('isFonctionNouvelle') ? document.getElementById('isFonctionNouvelle').checked : false;
+  
+  // Déterminer le nouveau poste selon le type de mouvement et la checkbox
+  let nouveauPoste;
+  if (typeMvt === "Changement d'intitulé") {
+    nouveauPoste = document.getElementById('nouvelleFonctionPersonnalisee').value;
+  } else if (isFonctionNouvelle) {
+    // Si la checkbox "nouvelle fonction" est cochée, utiliser le champ personnalisé
+    nouveauPoste = document.getElementById('nouvelleFonctionNom').value;
+  } else {
+    nouveauPoste = document.getElementById('nouveauPoste').value;
+  }
 
   const modal = `
     <div class="modal-overlay">
@@ -472,12 +637,16 @@ function showRecapMouvement() {
             <span class="recap-value">${ancienPoste}</span>
           </div>
           <div class="recap-row">
+            <span class="recap-label">📌 Type de Mouvement :</span>
+            <span class="recap-value">${typeMvt}</span>
+          </div>
+          <div class="recap-row">
             <span class="recap-label">⭐ Nouveau Poste :</span>
             <span class="recap-value">${nouveauPoste}</span>
           </div>
           <div class="recap-row">
-            <span class="recap-label">📌 Type de Mouvement :</span>
-            <span class="recap-value">${typeMvt}</span>
+            <span class="recap-label">✨ Nouvelle Fonction :</span>
+            <span class="recap-value">${isFonctionNouvelle ? '✅ Oui' : '❌ Non'}</span>
           </div>
           <div class="recap-row">
             <span class="recap-label">📝 Raison :</span>
@@ -513,6 +682,21 @@ function confirmMouvement() {
     confirmBtn.style.cursor = 'not-allowed';
   }
 
+  const typeMvt = document.getElementById('typeMvt').value;
+  let nouveauPoste;
+  
+  // Déterminer le nouveau poste selon le type de mouvement et la checkbox
+  if (typeMvt === "Changement d'intitulé") {
+    nouveauPoste = document.getElementById('nouvelleFonctionPersonnalisee').value;
+  } else if (document.getElementById('isFonctionNouvelle').checked) {
+    // Si la checkbox "nouvelle fonction" est cochée, utiliser le champ personnalisé
+    nouveauPoste = document.getElementById('nouvelleFonctionNom').value;
+  } else {
+    nouveauPoste = document.getElementById('nouveauPoste').value;
+  }
+
+  const isFonctionNouvelle = document.getElementById('isFonctionNouvelle') ? document.getElementById('isFonctionNouvelle').checked : false;
+
   const formData = new FormData();
   formData.append("type", "mouvement");
   formData.append("hrbp", document.getElementById('hrbp').value);
@@ -520,8 +704,9 @@ function confirmMouvement() {
   formData.append("nom", document.getElementById('nom').value);
   formData.append("dateMvt", document.getElementById('dateMvt').value);
   formData.append("ancienPoste", document.getElementById('ancienPoste').value);
-  formData.append("nouveauPoste", document.getElementById('nouveauPoste').value);
-  formData.append("typeMvt", document.getElementById('typeMvt').value);
+  formData.append("nouveauPoste", nouveauPoste);
+  formData.append("typeMvt", typeMvt);
+  formData.append("isFonctionNouvelle", isFonctionNouvelle);
   formData.append("raisonMvt", document.getElementById('raisonMvt').value);
 
   fetch(API_URL, {
@@ -625,26 +810,28 @@ function setActiveButton(buttonName) {
   const existingBubbles = document.querySelectorAll('.bubble');
   existingBubbles.forEach(bubble => bubble.remove());
   
-  // Enlever la classe active de tous les boutons du menu
-  const buttons = document.querySelectorAll('.menu button');
+  // Enlever la classe active de tous les boutons de navigation
+  const buttons = document.querySelectorAll('.nav-btn');
   buttons.forEach(btn => btn.classList.remove('active'));
   
   // Ajouter la classe active au bouton cliqué
   if (buttonName === 'depart') {
-    buttons[0].classList.add('active');
-    // Créer les bulles pour le bouton Départ
-    createBubbles(buttons[0]);
+    const btnDepart = document.getElementById('btn-depart');
+    if (btnDepart) {
+      btnDepart.classList.add('active');
+      createBubbles(btnDepart);
+    }
   } else if (buttonName === 'mouvement') {
-    buttons[1].classList.add('active');
-    // Créer les bulles pour le bouton Mouvement
-    createBubbles(buttons[1]);
+    const btnMouvement = document.getElementById('btn-mouvement');
+    if (btnMouvement) {
+      btnMouvement.classList.add('active');
+      createBubbles(btnMouvement);
+    }
   }
 }
 
 // Event listener pour enlever la classe active quand on clique ailleurs
 document.addEventListener('DOMContentLoaded', function() {
-  loadData();
-  
   // Enlever la classe active quand on clique sur le formulaire
   const formContainer = document.getElementById('formContainer');
   if (formContainer) {
