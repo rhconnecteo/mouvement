@@ -402,19 +402,39 @@ function App() {
       if (result.status === 'success') {
         await loadHistory();
 
-        setSuccessMessage(
+        const successMsg =
           modalMode === 'depart'
             ? '✅ Départ enregistré avec succès'
-            : '✅ Mouvement enregistré avec succès'
-        );
+            : '✅ Mouvement enregistré avec succès';
+        
+        setSuccessMessage(successMsg);
+        
+        // Auto-effacer le message après 4 secondes
+        setTimeout(() => {
+          setSuccessMessage('');
+        }, 4000);
+        
         setModalMode(null);
         setModalData(null);
+        
+        // Réinitialiser les formulaires
+        if (modalMode === 'depart') {
+          setDepartForm(initialDepartForm);
+        } else {
+          setMouvementForm(initialMouvementForm);
+        }
+        setSubmitErrors({});
       } else {
         throw new Error(result.message || 'Erreur serveur');
       }
     } catch (error) {
       console.error(error);
       setSuccessMessage('❌ Impossible de soumettre le formulaire.');
+      
+      // Auto-effacer le message d'erreur après 5 secondes
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
     } finally {
       setIsSubmitting(false);
     }
