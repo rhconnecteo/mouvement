@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;padding:12px}
+      table{border-collapse:collapse;width:100%;margin-bottom:12px}
+      th,td{border:1px solid #ddd;padding:6px;font-size:12px}
+      th{background:#f4f4f4}
+      h3{margin-top:0}
+      button{margin-bottom:8px}
+    </style>
+  </head>
+  <body>
+    <h3>Historique des enregistrements</h3>
+    <button id="refresh">Rafraîchir</button>
+    <div id="content">Chargement…</div>
+
+    <script>
+      document.getElementById('refresh').addEventListener('click', load);
+      function formatDate(d){ if(!d) return ''; try{ const dt=new Date(d); return dt.toLocaleString(); }catch(e){ return d; } }
+      function render(data){
+        var html = '';
+        html += '<h4>Départs</h4>';
+        if(data.depart && data.depart.length){
+          html += '<table><tr><th>Date</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Fonction</th><th>Date départ</th><th>Motif</th><th>Raison</th></tr>';
+          data.depart.slice().reverse().forEach(function(r){ html += '<tr><td>'+formatDate(r.timestamp)+'</td><td>'+ (r.hrbp||'') +'</td><td>'+r.matricule+'</td><td>'+r.nom+'</td><td>'+r.fonction+'</td><td>'+ (r.dateDepart||'') +'</td><td>'+ (r.motif||'') +'</td><td>'+ (r.raison||'') +'</td></tr>'; });
+          html += '</table>';
+        } else { html += '<div>Aucun départ</div>'; }
+
+        html += '<h4>Mouvements</h4>';
+        if(data.mouvement && data.mouvement.length){
+          html += '<table><tr><th>Date</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Date mvt</th><th>Ancien</th><th>Nouveau</th><th>Type</th><th>Raison</th></tr>';
+          data.mouvement.slice().reverse().forEach(function(r){ html += '<tr><td>'+formatDate(r.timestamp)+'</td><td>'+ (r.hrbp||'') +'</td><td>'+r.matricule+'</td><td>'+r.nom+'</td><td>'+ (r.dateMvt||'') +'</td><td>'+ (r.ancienPoste||'') +'</td><td>'+ (r.nouveauPoste||'') +'</td><td>'+ (r.typeMvt||'') +'</td><td>'+ (r.raisonMvt||'') +'</td></tr>'; });
+          html += '</table>';
+        } else { html += '<div>Aucun mouvement</div>'; }
+
+        document.getElementById('content').innerHTML = html;
+      }
+      function load(){
+        google.script.run.withSuccessHandler(render).getEntries();
+      }
+      load();
+    </script>
+  </body>
+</html>
