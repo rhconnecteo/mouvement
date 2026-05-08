@@ -19,8 +19,7 @@ function toggleSidebar() {
   }
 }
 
-const API_URL = "https://script.google.com/macros/s/AKfycbysuA2KIeL1vQ2N5dQ17o5ai6ayElOkIE7NlAUNDTDp2-V_zNwYpzNeL6WP4vlmPvIC/exec";
-
+const API_URL = "https://script.google.com/macros/s/AKfycbzzEbuBn4FPRPCtvZpic8xdjBeZW3KkqqQ2LDBJFZOL6I37IzEjcP-8at6ahETEESY/exec";
 
 let employes = [];
 let motifsDepart = [
@@ -122,7 +121,7 @@ async function showDepart() {
   setActiveButton('depart');
   
   const optionsEmployes = employes
-    .map(emp => `<option value="${emp.matricule}|${emp.nom}|${emp.fonction}">${emp.matricule} - ${emp.nom}</option>`)
+    .map((emp, index) => `<option value="${index}">${emp.matricule} - ${emp.nom}</option>`)
     .join("");
 
   const optionsMotif = motifsDepart
@@ -132,6 +131,7 @@ async function showDepart() {
   document.getElementById("formContainer").innerHTML = `
     <form onsubmit="submitDepart(event)">
       <h3>📤 Formulaire de Départ</h3>
+      <div style="margin-bottom:8px;"><button type="button" onclick="openAllDeparts()">Voir tous les collaborateurs en départ</button></div>
       
       <label for="hrbp">HRBP :</label>
       <select id="hrbp" required>
@@ -149,7 +149,7 @@ async function showDepart() {
       <div class="search-container">
         <input type="text" id="employeeSearch" class="search-input" placeholder="🔍 Rechercher par matricule ou nom..." onkeyup="filterEmployeeList('depart')">
         <div id="employeeDropdown" class="employee-dropdown">
-          ${employes.map(emp => `<div class="employee-option" onclick="selectEmployee('depart', '${emp.matricule}|${emp.nom}|${emp.fonction}')">${emp.matricule} - ${emp.nom}</div>`).join('')}
+          ${employes.map((emp, index) => `<div class="employee-option" onclick="selectEmployee('depart', ${index})">${emp.matricule} - ${emp.nom}</div>`).join('')}
         </div>
       </div><br>
 
@@ -161,6 +161,21 @@ async function showDepart() {
 
       <label for="fonction">Fonction :</label>
       <input id="fonction" readonly><br>
+
+      <label for="statut">Statut :</label>
+      <input id="statut" readonly><br>
+
+      <label for="rattachement">Rattachement :</label>
+      <input id="rattachement" readonly><br>
+
+      <label for="dateIntegration">Date d'intégration :</label>
+      <input id="dateIntegration" readonly><br>
+
+      <label for="login">Login :</label>
+      <input id="login" readonly><br>
+
+      <label for="mailConnecteo">Mail Connecteo :</label>
+      <input id="mailConnecteo" readonly><br>
 
       <label for="dateDepart">Date de Départ :</label>
       <input type="date" id="dateDepart" required><br>
@@ -196,20 +211,22 @@ function filterEmployeeList(formType) {
   if (searchTerm === '') {
     // Afficher tous les employés si le champ est vide
     dropdown.innerHTML = employeeList
-      .map(emp => `<div class="employee-option" onclick="selectEmployee('${formType}', '${emp.matricule}|${emp.nom}|${emp.fonction}')">${emp.matricule} - ${emp.nom}</div>`)
+      .map((emp, index) => `<div class="employee-option" onclick="selectEmployee('${formType}', ${index})">${emp.matricule} - ${emp.nom}</div>`)
       .join('');
   } else {
     // Filtrer les employés
-    const filtered = employeeList.filter(emp => 
-      emp.matricule.toLowerCase().includes(searchTerm) || 
-      emp.nom.toLowerCase().includes(searchTerm)
-    );
+    const filtered = employeeList
+      .map((emp, index) => ({ emp, index }))
+      .filter(item => 
+        item.emp.matricule.toLowerCase().includes(searchTerm) || 
+        item.emp.nom.toLowerCase().includes(searchTerm)
+      );
     
     if (filtered.length === 0) {
       dropdown.innerHTML = '<div style="padding: 10px; color: #999;">Aucun employé trouvé</div>';
     } else {
       dropdown.innerHTML = filtered
-        .map(emp => `<div class="employee-option" onclick="selectEmployee('${formType}', '${emp.matricule}|${emp.nom}|${emp.fonction}')">${emp.matricule} - ${emp.nom}</div>`)
+        .map(item => `<div class="employee-option" onclick="selectEmployee('${formType}', ${item.index})">${item.emp.matricule} - ${item.emp.nom}</div>`)
         .join('');
     }
   }
@@ -220,18 +237,25 @@ function filterEmployeeList(formType) {
 // =============================
 // SELECT EMPLOYEE
 // =============================
-function selectEmployee(formType, employeeData) {
-  const [matricule, nom, fonction] = employeeData.split("|");
-  
+function selectEmployee(formType, employeeIndex) {
+  const employeeList = formType === 'depart' ? window.employeesDepartList : window.employeesMouvementList;
+  const employee = employeeList && employeeList[employeeIndex] ? employeeList[employeeIndex] : null;
+
+  if (!employee) return;
+
   // Remplir les champs
-  document.getElementById("matricule").value = matricule;
-  document.getElementById("nom").value = nom;
-  
-  // Remplir le champ approprié selon le type de formulaire
+  document.getElementById("matricule").value = employee.matricule || '';
+  document.getElementById("nom").value = employee.nom || '';
+
   if (formType === 'depart') {
-    document.getElementById("fonction").value = fonction;
+    document.getElementById("fonction").value = employee.fonction || '';
+    document.getElementById("dateIntegration").value = employee.dateIntegration || '';
+    document.getElementById("statut").value = employee.statut || '';
+    document.getElementById("rattachement").value = employee.rattachement || '';
+    document.getElementById("login").value = employee.login || '';
+    document.getElementById("mailConnecteo").value = employee.mailConnecteo || '';
   } else if (formType === 'mouvement') {
-    document.getElementById("ancienPoste").value = fonction;
+    document.getElementById("ancienPoste").value = employee.fonction || '';
     fillMouvementNewPositions();
   }
   
@@ -275,6 +299,7 @@ async function showMouvement() {
   document.getElementById("formContainer").innerHTML = `
     <form onsubmit="submitMouvement(event)">
       <h3>🔄 Formulaire de Mouvement</h3>
+      <div style="margin-bottom:8px;"><button type="button" onclick="openAllMouvements()">Voir tous les collaborateurs en mouvement</button></div>
 
       <label for="hrbp">HRBP :</label>
       <select id="hrbp" required>
@@ -557,9 +582,16 @@ function confirmDepart() {
   formData.append("matricule", document.getElementById('matricule').value);
   formData.append("nom", document.getElementById('nom').value);
   formData.append("fonction", document.getElementById('fonction').value);
+  formData.append("dateIntegration", document.getElementById('dateIntegration') ? document.getElementById('dateIntegration').value : '');
+  formData.append("statut", document.getElementById('statut') ? document.getElementById('statut').value : '');
+  formData.append("rattachement", document.getElementById('rattachement') ? document.getElementById('rattachement').value : '');
+  formData.append("login", document.getElementById('login') ? document.getElementById('login').value : '');
+  formData.append("mailConnecteo", document.getElementById('mailConnecteo') ? document.getElementById('mailConnecteo').value : '');
   formData.append("dateDepart", document.getElementById('dateDepart').value);
   formData.append("motif", document.getElementById('motif').value);
   formData.append("raison", document.getElementById('raison').value);
+  formData.append("extraLogin", '');
+  formData.append("extraMail", '');
 
   fetch(API_URL, {
     method: "POST",
@@ -728,6 +760,60 @@ function confirmMouvement() {
       console.error("Erreur : " + err.message);
       isSubmitting = false;
     });
+}
+
+// =============================
+// SHOW ALL DEPARTS / MOUVEMENTS MODALS
+// =============================
+function openAllDeparts(){
+  const formData = new FormData();
+  formData.append('type','getEntries');
+  fetch(API_URL,{method:'POST', body: formData})
+    .then(res=>res.json())
+    .then(data=>{
+      if(data.status==='success'){
+        const rows = data.depart || [];
+        if(rows.length===0){ showModalContent('Départs','<div>Aucun départ</div>'); return; }
+        let html = '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Fonction</th><th>Rattachement</th><th>Date départ</th><th>Motif</th></tr>';
+        rows.slice().reverse().forEach(r=>{
+          html += `<tr><td>${r.timestamp||''}</td><td>${r.hrbp||''}</td><td>${r.matricule||''}</td><td>${r.nom||''}</td><td>${r.fonction||''}</td><td>${r.rattachement||''}</td><td>${r.dateDepart||''}</td><td>${r.motif||''}</td></tr>`;
+        });
+        html += '</table>';
+        showModalContent('Tous les Départs', html);
+      }
+    }).catch(err=>{ console.error(err); showModalContent('Erreur','<div>Impossible de charger les départs</div>'); });
+}
+
+function openAllMouvements(){
+  const formData = new FormData();
+  formData.append('type','getEntries');
+  fetch(API_URL,{method:'POST', body: formData})
+    .then(res=>res.json())
+    .then(data=>{
+      if(data.status==='success'){
+        const rows = data.mouvement || [];
+        if(rows.length===0){ showModalContent('Mouvements','<div>Aucun mouvement</div>'); return; }
+        let html = '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Date mvt</th><th>Type</th><th>Ancien</th><th>Nouveau</th></tr>';
+        rows.slice().reverse().forEach(r=>{
+          html += `<tr><td>${r.timestamp||''}</td><td>${r.hrbp||''}</td><td>${r.matricule||''}</td><td>${r.nom||''}</td><td>${r.dateMvt||''}</td><td>${r.typeMvt||''}</td><td>${r.ancienPoste||''}</td><td>${r.nouveauPoste||''}</td></tr>`;
+        });
+        html += '</table>';
+        showModalContent('Tous les Mouvements', html);
+      }
+    }).catch(err=>{ console.error(err); showModalContent('Erreur','<div>Impossible de charger les mouvements</div>'); });
+}
+
+function showModalContent(title, html){
+  removeModal();
+  const modal = `
+    <div class="modal-overlay">
+      <div class="modal-content" style="max-width:900px;">
+        <h3>${title}</h3>
+        <div style="max-height:60vh;overflow:auto;margin-bottom:12px;">${html}</div>
+        <div style="text-align:right;"><button onclick="removeModal()">Fermer</button></div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', modal);
 }
 
 document.addEventListener("DOMContentLoaded", loadData);

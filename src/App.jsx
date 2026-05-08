@@ -46,6 +46,35 @@ const initialMouvementForm = {
   raisonMvt: ''
 };
 
+function normalizeEmployee(employee) {
+  if (!employee) return null;
+
+  return {
+    matricule: String(employee.matricule || '').trim(),
+    dateIntegration: employee.dateIntegration || employee.date_intégration || employee['Date d\'intégration'] || '',
+    statut: employee.statut || employee.status || employee['Statut'] || '',
+    nom: String(employee.nom || employee['Nom et Prénoms'] || '').trim(),
+    fonction: String(employee.fonction || employee['Fonction'] || '').trim(),
+    rattachement: String(employee.rattachement || employee['Rattachement'] || '').trim(),
+    login: String(employee.login || employee['Login'] || '').trim(),
+    mailConnecteo: String(employee.mailConnecteo || employee['Mail connecteo'] || employee['Mail Connecteo'] || '').trim()
+  };
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return day + '/' + month + '/' + year;
+  } catch (e) {
+    return String(value);
+  }
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState('depart');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -66,6 +95,13 @@ function App() {
   const [kpiFilters, setKpiFilters] = useState({
     matricule: '',
     nom: '',
+    fonction: '',
+    dateFrom: '',
+    dateTo: ''
+  });
+  const [tableauFilters, setTableauFilters] = useState({
+    fonction: '',
+    rattachement: '',
     dateFrom: '',
     dateTo: ''
   });
@@ -189,7 +225,7 @@ function App() {
         throw new Error(data.message || 'Erreur serveur');
       }
 
-      setEmployes(data.employes || []);
+      setEmployes((data.employes || []).map(normalizeEmployee).filter(Boolean));
       setDataLoaded(true);
     } catch (error) {
       setLoadError(error.message || 'Impossible de charger les données');
@@ -254,7 +290,7 @@ function App() {
   function selectDepartEmployee(employee) {
     setDepartForm(prev => ({
       ...prev,
-      selectedEmployee: employee,
+      selectedEmployee: normalizeEmployee(employee),
       employeeSearch: ''
     }));
   }
@@ -262,7 +298,7 @@ function App() {
   function selectMouvementEmployee(employee) {
     setMouvementForm(prev => ({
       ...prev,
-      selectedEmployee: employee,
+      selectedEmployee: normalizeEmployee(employee),
       employeeSearch: '',
       nouveauPoste: ''
     }));
@@ -325,8 +361,13 @@ function App() {
     return {
       hrbp: departForm.hrbp,
       matricule: departForm.selectedEmployee?.matricule || '',
+      dateIntegration: departForm.selectedEmployee?.dateIntegration || '',
+      statut: departForm.selectedEmployee?.statut || '',
       nom: departForm.selectedEmployee?.nom || '',
       fonction: departForm.selectedEmployee?.fonction || '',
+      rattachement: departForm.selectedEmployee?.rattachement || '',
+      login: departForm.selectedEmployee?.login || '',
+      mailConnecteo: departForm.selectedEmployee?.mailConnecteo || '',
       dateDepart: departForm.dateDepart,
       motif: departForm.motif,
       raison: departForm.raison
@@ -479,6 +520,34 @@ function App() {
   }
 
   function renderKPIContent() {
+    const hasKpiFilters = Boolean(
+      kpiFilters.matricule ||
+      kpiFilters.nom ||
+      kpiFilters.fonction ||
+      kpiFilters.dateFrom ||
+      kpiFilters.dateTo
+    );
+
+    const matchesDateRange = (recordDateValue) => {
+      if (!kpiFilters.dateFrom && !kpiFilters.dateTo) return true;
+
+      const recordDate = new Date(recordDateValue || 0);
+      if (Number.isNaN(recordDate.getTime())) return false;
+
+      if (kpiFilters.dateFrom) {
+        const fromDate = new Date(kpiFilters.dateFrom);
+        if (recordDate < fromDate) return false;
+      }
+
+      if (kpiFilters.dateTo) {
+        const toDate = new Date(kpiFilters.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (recordDate > toDate) return false;
+      }
+
+      return true;
+    };
+
     // Fonction de filtrage des enregistrements
     const filteredRecords = kpiStats.records.filter(record => {
       const dataToCheck = record.data || {};
@@ -494,25 +563,27 @@ function App() {
           !String(dataToCheck.nom || '').toLowerCase().includes(kpiFilters.nom.toLowerCase())) {
         return false;
       }
+
+      const fonctionValue = String(
+        record.type === 'depart'
+          ? dataToCheck.fonction || ''
+          : dataToCheck.ancienPoste || ''
+      ).toLowerCase();
+
+      if (kpiFilters.fonction && !fonctionValue.includes(kpiFilters.fonction.toLowerCase())) {
+        return false;
+      }
       
       // Filtre par date (date de départ ou mouvement)
-      if (kpiFilters.dateFrom || kpiFilters.dateTo) {
-        const recordDate = new Date(record.type === 'depart' ? dataToCheck.dateDepart : dataToCheck.dateMvt);
-        
-        if (kpiFilters.dateFrom) {
-          const fromDate = new Date(kpiFilters.dateFrom);
-          if (recordDate < fromDate) return false;
-        }
-        
-        if (kpiFilters.dateTo) {
-          const toDate = new Date(kpiFilters.dateTo);
-          toDate.setHours(23, 59, 59, 999);
-          if (recordDate > toDate) return false;
-        }
+      if (!matchesDateRange(record.type === 'depart' ? dataToCheck.dateDepart : dataToCheck.dateMvt)) {
+        return false;
       }
       
       return true;
     });
+
+    const filteredDepartRecords = filteredRecords.filter(record => record.type === 'depart');
+    const filteredMouvementRecords = filteredRecords.filter(record => record.type === 'mouvement');
 
     // Calculer les totaux filtrés
     let filteredDepartCount = 0;
@@ -578,6 +649,16 @@ function App() {
                   />
                 </div>
                 <div className="kpi-filter-field">
+                  <label htmlFor="filter-fonction">Fonction :</label>
+                  <input
+                    id="filter-fonction"
+                    type="text"
+                    placeholder="Rechercher par fonction…"
+                    value={kpiFilters.fonction}
+                    onChange={e => setKpiFilters(prev => ({ ...prev, fonction: e.target.value }))}
+                  />
+                </div>
+                <div className="kpi-filter-field">
                   <label htmlFor="filter-date-from">Du :</label>
                   <input
                     id="filter-date-from"
@@ -598,7 +679,7 @@ function App() {
               </div>
               <button
                 className="kpi-filter-clear"
-                onClick={() => setKpiFilters({ matricule: '', nom: '', dateFrom: '', dateTo: '' })}
+                onClick={() => setKpiFilters({ matricule: '', nom: '', fonction: '', dateFrom: '', dateTo: '' })}
               >
                 <i className="fas fa-times" /> Réinitialiser filtres
               </button>
@@ -612,7 +693,7 @@ function App() {
                 <div className="stat-info">
                   <div className="stat-label">Total Départs</div>
                   <div className="stat-value">{filteredDepartCount}</div>
-                  {(kpiFilters.matricule || kpiFilters.nom || kpiFilters.dateFrom || kpiFilters.dateTo) && 
+                  {hasKpiFilters && 
                     <div className="stat-subtext">({kpiStats.totalDeparts} au total)</div>
                   }
                 </div>
@@ -624,7 +705,7 @@ function App() {
                 <div className="stat-info">
                   <div className="stat-label">Total Mouvements</div>
                   <div className="stat-value">{filteredMouvementCount}</div>
-                  {(kpiFilters.matricule || kpiFilters.nom || kpiFilters.dateFrom || kpiFilters.dateTo) && 
+                  {hasKpiFilters && 
                     <div className="stat-subtext">({kpiStats.totalMouvements} au total)</div>
                   }
                 </div>
@@ -705,11 +786,227 @@ function App() {
                         </div>
                       </div>
                       <div className="history-date">
-                        {new Date(record.type === 'depart' ? record.data?.dateDepart : record.data?.dateMvt)
-                          .toLocaleDateString('fr-FR')}
+                        {formatDate(record.type === 'depart' ? record.data?.dateDepart : record.data?.dateMvt)}
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function renderTableauContent() {
+    const hasTableauFilters = Boolean(
+      tableauFilters.fonction ||
+      tableauFilters.rattachement ||
+      tableauFilters.dateFrom ||
+      tableauFilters.dateTo
+    );
+
+    const matchesDateRange = (recordDateValue) => {
+      if (!tableauFilters.dateFrom && !tableauFilters.dateTo) return true;
+
+      const recordDate = new Date(recordDateValue || 0);
+      if (Number.isNaN(recordDate.getTime())) return false;
+
+      if (tableauFilters.dateFrom) {
+        const fromDate = new Date(tableauFilters.dateFrom);
+        if (recordDate < fromDate) return false;
+      }
+
+      if (tableauFilters.dateTo) {
+        const toDate = new Date(tableauFilters.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (recordDate > toDate) return false;
+      }
+
+      return true;
+    };
+
+    const filteredDepartRecords = sheetEntries.depart.filter(record => {
+      const fonctionValue = String(record.fonction || '').toLowerCase();
+      const rattachementValue = String(record.rattachement || '').toLowerCase();
+
+      if (tableauFilters.fonction && !fonctionValue.includes(tableauFilters.fonction.toLowerCase())) {
+        return false;
+      }
+
+      if (tableauFilters.rattachement && !rattachementValue.includes(tableauFilters.rattachement.toLowerCase())) {
+        return false;
+      }
+
+      return matchesDateRange(record.dateDepart);
+    });
+
+    const filteredMouvementRecords = sheetEntries.mouvement.filter(record => {
+      const fonctionValue = String(record.ancienPoste || '').toLowerCase();
+      const rattachementValue = String(record.rattachement || '').toLowerCase();
+
+      if (tableauFilters.fonction && !fonctionValue.includes(tableauFilters.fonction.toLowerCase())) {
+        return false;
+      }
+
+      if (tableauFilters.rattachement && !rattachementValue.includes(tableauFilters.rattachement.toLowerCase())) {
+        return false;
+      }
+
+      return matchesDateRange(record.dateMvt);
+    });
+
+    return (
+      <div className="kpi-dashboard">
+        <div className="kpi-dashboard-header">
+          <h3><i className="fas fa-table" /> Tableau</h3>
+          <button
+            className="kpi-dashboard-refresh"
+            onClick={() => loadHistory()}
+            title="Rafraîchir l'historique"
+          >
+            <i className="fas fa-rotate" />
+          </button>
+        </div>
+
+        {isHistoryLoading ? (
+          <div className="kpi-dashboard-empty">
+            <p>Chargement de l'historique depuis la base…</p>
+          </div>
+        ) : historyError ? (
+          <div className="kpi-dashboard-empty">
+            <p>{historyError}</p>
+          </div>
+        ) : sheetEntries.depart.length === 0 && sheetEntries.mouvement.length === 0 ? (
+          <div className="kpi-dashboard-empty">
+            <p>Aucun tableau disponible</p>
+          </div>
+        ) : (
+          <>
+            <div className="kpi-dashboard-section">
+              <h4><i className="fas fa-filter" /> Filtres</h4>
+              <div className="kpi-filter-grid">
+                <div className="kpi-filter-field">
+                  <label htmlFor="tableau-fonction">Fonction :</label>
+                  <input
+                    id="tableau-fonction"
+                    type="text"
+                    placeholder="Rechercher par fonction…"
+                    value={tableauFilters.fonction}
+                    onChange={e => setTableauFilters(prev => ({ ...prev, fonction: e.target.value }))}
+                  />
+                </div>
+                <div className="kpi-filter-field">
+                  <label htmlFor="tableau-rattachement">Rattachement :</label>
+                  <input
+                    id="tableau-rattachement"
+                    type="text"
+                    placeholder="Rechercher par rattachement…"
+                    value={tableauFilters.rattachement}
+                    onChange={e => setTableauFilters(prev => ({ ...prev, rattachement: e.target.value }))}
+                  />
+                </div>
+                <div className="kpi-filter-field">
+                  <label htmlFor="tableau-date-from">Du :</label>
+                  <input
+                    id="tableau-date-from"
+                    type="date"
+                    value={tableauFilters.dateFrom}
+                    onChange={e => setTableauFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                  />
+                </div>
+                <div className="kpi-filter-field">
+                  <label htmlFor="tableau-date-to">Au :</label>
+                  <input
+                    id="tableau-date-to"
+                    type="date"
+                    value={tableauFilters.dateTo}
+                    onChange={e => setTableauFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <button
+                className="kpi-filter-clear"
+                onClick={() => setTableauFilters({ fonction: '', rattachement: '', dateFrom: '', dateTo: '' })}
+              >
+                <i className="fas fa-times" /> Réinitialiser filtres
+              </button>
+            </div>
+
+            <div className="kpi-dashboard-section">
+              <h4><i className="fas fa-sign-out-alt" /> Tableau Départs ({filteredDepartRecords.length})</h4>
+              {filteredDepartRecords.length === 0 ? (
+                <p className="empty-text">Aucun départ ne correspond aux filtres</p>
+              ) : (
+                <div className="table-scroll">
+                  <table className="kpi-table">
+                    <thead>
+                      <tr>
+                        <th>Date insertion</th>
+                        <th>Matricule</th>
+                        <th>Nom</th>
+                        <th>Fonction</th>
+                        <th>Rattachement</th>
+                        <th>Date départ</th>
+                        <th>Motif</th>
+                        <th>Raison</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDepartRecords.map((record, idx) => (
+                        <tr key={record.id || `tableau-depart-${idx}`}>
+                          <td>{formatDate(record.timestamp)}</td>
+                          <td>{record.matricule}</td>
+                          <td>{record.nom}</td>
+                          <td>{record.fonction}</td>
+                          <td>{record.rattachement}</td>
+                          <td>{formatDate(record.dateDepart)}</td>
+                          <td>{record.motif}</td>
+                          <td>{record.raison}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="kpi-dashboard-section">
+              <h4><i className="fas fa-exchange-alt" /> Tableau Mouvements ({filteredMouvementRecords.length})</h4>
+              {filteredMouvementRecords.length === 0 ? (
+                <p className="empty-text">Aucun mouvement ne correspond aux filtres</p>
+              ) : (
+                <div className="table-scroll">
+                  <table className="kpi-table">
+                    <thead>
+                      <tr>
+                        <th>Date insertion</th>
+                        <th>Matricule</th>
+                        <th>Nom</th>
+                        <th>Ancien poste</th>
+                        <th>Date MVT</th>
+                        <th>Nouveau poste</th>
+                        <th>Type</th>
+                        <th>Raison</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredMouvementRecords.map((record, idx) => (
+                        <tr key={record.id || `tableau-mvt-${idx}`}>
+                          <td>{formatDate(record.timestamp)}</td>
+                          <td>{record.matricule}</td>
+                          <td>{record.nom}</td>
+                          <td>{record.ancienPoste}</td>
+                          <td>{formatDate(record.dateMvt)}</td>
+                          <td>{record.nouveauPoste}</td>
+                          <td>{record.typeMvt}</td>
+                          <td>{record.raisonMvt}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -754,6 +1051,13 @@ function App() {
           <i className="fas fa-chart-bar" />
           <span>KPI</span>
         </button>
+        <button
+          className={`nav-btn ${activeTab === 'tableau' ? 'active' : ''}`}
+          onClick={() => handleTabChange('tableau')}
+        >
+          <i className="fas fa-table" />
+          <span>Tableau</span>
+        </button>
       </nav>
     </div>
 
@@ -762,6 +1066,8 @@ function App() {
         <h2>
           {activeTab === 'kpi'
             ? 'Tableau de bord KPI'
+            : activeTab === 'tableau'
+            ? 'Tableaux des collaborateurs'
             : 'Mouvement de notre Collaborateur'}
         </h2>
       </div>
@@ -771,6 +1077,10 @@ function App() {
           {activeTab === 'kpi' ? (
             <>
               {!isLoading && !loadError && dataLoaded && employes.length > 0 && renderKPIContent()}
+            </>
+          ) : activeTab === 'tableau' ? (
+            <>
+              {!isLoading && !loadError && dataLoaded && employes.length > 0 && renderTableauContent()}
             </>
           ) : !isLoading && !loadError && dataLoaded && employes.length > 0 && (
             <form onSubmit={activeTab === 'depart' ? handleSubmitDepart : handleSubmitMouvement}>
@@ -859,6 +1169,31 @@ function App() {
                     <div className="field-block">
                       <label htmlFor="fonction">Fonction :</label>
                       <input id="fonction" value={departEmployee?.fonction || ''} readOnly />
+                    </div>
+
+                    <div className="field-block">
+                      <label htmlFor="statut">Statut :</label>
+                      <input id="statut" value={departEmployee?.statut || ''} readOnly />
+                    </div>
+
+                    <div className="field-block">
+                      <label htmlFor="rattachement">Rattachement :</label>
+                      <input id="rattachement" value={departEmployee?.rattachement || ''} readOnly />
+                    </div>
+
+                    <div className="field-block">
+                      <label htmlFor="dateIntegration">Date d'intégration :</label>
+                      <input id="dateIntegration" value={formatDate(departEmployee?.dateIntegration) || ''} readOnly />
+                    </div>
+
+                    <div className="field-block">
+                      <label htmlFor="login">Login :</label>
+                      <input id="login" value={departEmployee?.login || ''} readOnly />
+                    </div>
+
+                    <div className="field-block">
+                      <label htmlFor="mailConnecteo">Mail Connecteo :</label>
+                      <input id="mailConnecteo" value={departEmployee?.mailConnecteo || ''} readOnly />
                     </div>
 
                     <div className="field-block">

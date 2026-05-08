@@ -14,32 +14,129 @@
   <body>
     <h3>Historique des enregistrements</h3>
     <button id="refresh">Rafraîchir</button>
-    <div id="content">Chargement…</div>
+    <div style="margin-top:8px; margin-bottom:8px;">
+      <button id="show-departs">Afficher Départs</button>
+      <button id="show-mouvements">Afficher Mouvements</button>
+    </div>
+    <div id="filters" style="margin-bottom:10px; display:none;">
+      <strong>Filtres Départs</strong><br>
+      <label>Fonction: <select id="filterFonction"><option value="">--</option></select></label>
+      <label>Rattachement: <select id="filterRattachement"><option value="">--</option></select></label>
+      <label>Statut: <select id="filterStatut"><option value="">--</option></select></label>
+      <label>Date de départ du: <input type="date" id="filterDateFrom"></label>
+      <label>au: <input type="date" id="filterDateTo"></label>
+      <button id="applyFilters">Appliquer</button>
+      <button id="resetFilters">Réinitialiser</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-direction:column;">
+      <div id="departsSection">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <strong>Tableau Départs</strong>
+          <div><button id="show-departs-table">Afficher/masquer</button></div>
+        </div>
+        <div id="departsTable" style="margin-top:8px;display:block;max-height:40vh;overflow:auto;">Chargement…</div>
+      </div>
+
+      <div id="mouvementsSection">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <strong>Tableau Mouvements</strong>
+          <div><button id="show-mouvements-table">Afficher/masquer</button></div>
+        </div>
+        <div id="mouvementsTable" style="margin-top:8px;display:block;max-height:40vh;overflow:auto;">Chargement…</div>
+      </div>
+    </div>
 
     <script>
       document.getElementById('refresh').addEventListener('click', load);
       function formatDate(d){ if(!d) return ''; try{ const dt=new Date(d); return dt.toLocaleString(); }catch(e){ return d; } }
       function render(data){
-        var html = '';
-        html += '<h4>Départs</h4>';
+        // Build depart table
+        var departHtml = '';
         if(data.depart && data.depart.length){
-          html += '<table><tr><th>Date</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Fonction</th><th>Date départ</th><th>Motif</th><th>Raison</th></tr>';
-          data.depart.slice().reverse().forEach(function(r){ html += '<tr><td>'+formatDate(r.timestamp)+'</td><td>'+ (r.hrbp||'') +'</td><td>'+r.matricule+'</td><td>'+r.nom+'</td><td>'+r.fonction+'</td><td>'+ (r.dateDepart||'') +'</td><td>'+ (r.motif||'') +'</td><td>'+ (r.raison||'') +'</td></tr>'; });
-          html += '</table>';
-        } else { html += '<div>Aucun départ</div>'; }
+          departHtml += '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Date intégration</th><th>Statut</th><th>Nom</th><th>Fonction</th><th>Rattachement</th><th>Login</th><th>Mail</th><th>Date départ</th><th>Motif</th><th>Raison</th></tr>';
+          data.depart.slice().reverse().forEach(function(r){ departHtml += '<tr><td>'+formatDate(r.timestamp)+'</td><td>'+ (r.hrbp||'') +'</td><td>'+r.matricule+'</td><td>'+ (r.dateIntegration||'') +'</td><td>'+ (r.statut||'') +'</td><td>'+r.nom+'</td><td>'+ (r.fonction||'') +'</td><td>'+ (r.rattachement||'') +'</td><td>'+ (r.login||'') +'</td><td>'+ (r.mailConnecteo||'') +'</td><td>'+ (r.dateDepart||'') +'</td><td>'+ (r.motif||'') +'</td><td>'+ (r.raison||'') +'</td></tr>'; });
+          departHtml += '</table>';
+        } else { departHtml = '<div>Aucun départ</div>'; }
 
-        html += '<h4>Mouvements</h4>';
+        // Build mouvement table
+        var mouvHtml = '';
         if(data.mouvement && data.mouvement.length){
-          html += '<table><tr><th>Date</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Date mvt</th><th>Ancien</th><th>Nouveau</th><th>Type</th><th>Raison</th></tr>';
-          data.mouvement.slice().reverse().forEach(function(r){ html += '<tr><td>'+formatDate(r.timestamp)+'</td><td>'+ (r.hrbp||'') +'</td><td>'+r.matricule+'</td><td>'+r.nom+'</td><td>'+ (r.dateMvt||'') +'</td><td>'+ (r.ancienPoste||'') +'</td><td>'+ (r.nouveauPoste||'') +'</td><td>'+ (r.typeMvt||'') +'</td><td>'+ (r.raisonMvt||'') +'</td></tr>'; });
-          html += '</table>';
-        } else { html += '<div>Aucun mouvement</div>'; }
+          mouvHtml += '<table style="width:100%;border-collapse:collapse"><tr><th>Date</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Date mvt</th><th>Ancien</th><th>Nouveau</th><th>Type</th><th>Raison</th></tr>';
+          data.mouvement.slice().reverse().forEach(function(r){ mouvHtml += '<tr><td>'+formatDate(r.timestamp)+'</td><td>'+ (r.hrbp||'') +'</td><td>'+r.matricule+'</td><td>'+r.nom+'</td><td>'+ (r.dateMvt||'') +'</td><td>'+ (r.ancienPoste||'') +'</td><td>'+ (r.nouveauPoste||'') +'</td><td>'+ (r.typeMvt||'') +'</td><td>'+ (r.raisonMvt||'') +'</td></tr>'; });
+          mouvHtml += '</table>';
+        } else { mouvHtml = '<div>Aucun mouvement</div>'; }
 
-        document.getElementById('content').innerHTML = html;
+        document.getElementById('departsTable').innerHTML = departHtml;
+        document.getElementById('mouvementsTable').innerHTML = mouvHtml;
+        // Populate filter options
+        try {
+          window._allEntries = data; // save for filtering
+          const funcs = Array.from(new Set((data.depart||[]).map(d=>d.fonction).filter(Boolean)));
+          const ratts = Array.from(new Set((data.depart||[]).map(d=>d.rattachement).filter(Boolean)));
+          const stats = Array.from(new Set((data.depart||[]).map(d=>d.statut).filter(Boolean)));
+          const fFonction = document.getElementById('filterFonction');
+          const fRatt = document.getElementById('filterRattachement');
+          const fStat = document.getElementById('filterStatut');
+          if(fFonction){ funcs.forEach(fn=>{ const o=document.createElement('option'); o.value=fn; o.textContent=fn; fFonction.appendChild(o); }); }
+          if(fRatt){ ratts.forEach(r=>{ const o=document.createElement('option'); o.value=r; o.textContent=r; fRatt.appendChild(o); }); }
+          if(fStat){ stats.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; fStat.appendChild(o); }); }
+        } catch(e){}
       }
       function load(){
         google.script.run.withSuccessHandler(render).getEntries();
       }
+      
+        // Hook filter buttons and section toggles
+        document.getElementById('show-departs').addEventListener('click', function(){
+          document.getElementById('filters').style.display='block';
+          document.getElementById('departsSection').style.display='block';
+          document.getElementById('mouvementsSection').style.display='none';
+          if(window._allEntries) render(window._allEntries);
+        });
+
+        document.getElementById('show-mouvements').addEventListener('click', function(){
+          document.getElementById('filters').style.display='none';
+          document.getElementById('departsSection').style.display='none';
+          document.getElementById('mouvementsSection').style.display='block';
+          if(window._allEntries) render(window._allEntries);
+        });
+
+        // Toggle individual table visibility
+        const tdBtn = document.getElementById('show-departs-table');
+        if(tdBtn) tdBtn.addEventListener('click', function(){ const el=document.getElementById('departsTable'); el.style.display = (el.style.display==='none') ? 'block' : 'none'; });
+        const tmBtn = document.getElementById('show-mouvements-table');
+        if(tmBtn) tmBtn.addEventListener('click', function(){ const el=document.getElementById('mouvementsTable'); el.style.display = (el.style.display==='none') ? 'block' : 'none'; });
+
+        document.getElementById('applyFilters').addEventListener('click', function(){ applyDepartFilter(); });
+        document.getElementById('resetFilters').addEventListener('click', function(){ resetDepartFilters(); });
+
+        function applyDepartFilter(){
+          var data = window._allEntries || {depart:[]};
+          var rows = data.depart || [];
+          var fn = document.getElementById('filterFonction').value;
+          var rt = document.getElementById('filterRattachement').value;
+          var st = document.getElementById('filterStatut').value;
+          var from = document.getElementById('filterDateFrom').value;
+          var to = document.getElementById('filterDateTo').value;
+          var filtered = rows.filter(function(r){
+            if(fn && (!r.fonction || r.fonction !== fn)) return false;
+            if(rt && (!r.rattachement || r.rattachement !== rt)) return false;
+            if(st && (!r.statut || r.statut !== st)) return false;
+            if(from){ var d = r.dateDepart ? new Date(r.dateDepart) : null; if(!d || d < new Date(from)) return false; }
+            if(to){ var d2 = r.dateDepart ? new Date(r.dateDepart) : null; if(!d2 || d2 > new Date(to)) return false; }
+            return true;
+          });
+          render({depart: filtered, mouvement: data.mouvement});
+        }
+
+        function resetDepartFilters(){
+          document.getElementById('filterFonction').value = '';
+          document.getElementById('filterRattachement').value = '';
+          document.getElementById('filterStatut').value = '';
+          document.getElementById('filterDateFrom').value = '';
+          document.getElementById('filterDateTo').value = '';
+          if(window._allEntries) render(window._allEntries);
+        }
       load();
     </script>
   </body>
