@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      :root {
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --text: #182230;
+        --muted: #64748b;
+        --line: #d9e1ec;
+        --accent: #0f766e;
+        --accent-2: #115e59;
+        --danger: #b42318;
+        --success: #067647;
+        --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      body {
+        margin: 0;
+        padding: 14px;
+        font-family: Arial, Helvetica, sans-serif;
+        background: linear-gradient(180deg, #eef4ff 0%, #f5f7fb 100%);
+        color: var(--text);
+      }
+
+      .shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .header {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px;
+        box-shadow: var(--shadow);
+      }
+
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      h2 {
+        margin: 0 0 6px;
+        font-size: 20px;
+      }
+
+      .subtext {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px;
+        box-shadow: var(--shadow);
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform .15s ease, opacity .15s ease, background .15s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: white;
+      }
+
+      .btn-secondary {
+        background: #e8eef7;
+        color: #1e293b;
+      }
+
+      .btn-ghost {
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--text);
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .summary-card {
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .summary-label {
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+
+      .summary-value {
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: auto;
+        max-height: 48vh;
+        background: white;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 1050px;
+      }
+
+      th, td {
+        border-bottom: 1px solid var(--line);
+        padding: 8px 10px;
+        font-size: 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        position: sticky;
+        top: 0;
+        background: #f8fafc;
+        z-index: 1;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+
+      tr.selected {
+        background: #ecfdf3;
+      }
+
+      .empty-state {
+        padding: 18px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .step {
+        display: none;
+      }
+
+      .step.active {
+        display: block;
+      }
+
+      .field-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+        background: #fff;
+      }
+
+      .readonly-field {
+        background: #f8fafc;
+      }
+
+      .muted-inline {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .status {
+        min-height: 20px;
+        font-size: 13px;
+        margin-top: 10px;
+      }
+
+      .status.error {
+        color: var(--danger);
+      }
+
+      .status.success {
+        color: var(--success);
+      }
+
+      .table-header-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+
+      .small-note {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .loading {
+        padding: 14px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="header">
+        <div class="eyebrow">Création de ticket</div>
+        <h2>Associer un ticket à plusieurs départs</h2>
+        <p class="subtext">Sélectionne les collaborateurs sans ticket, clique sur Suivant, saisis le ticket, puis enregistre. La date de création est posée automatiquement.</p>
+      </div>
+
+      <div class="panel step active" id="stepSelection">
+        <div class="toolbar">
+          <button type="button" class="btn-secondary" id="refreshBtn">Rafraîchir</button>
+          <button type="button" class="btn-ghost" id="selectAllBtn">Tout cocher</button>
+          <button type="button" class="btn-ghost" id="clearBtn">Tout décocher</button>
+        </div>
+
+        <div class="summary">
+          <div class="summary-card">
+            <span class="summary-label">Départs disponibles</span>
+            <div class="summary-value" id="countAvailable">0</div>
+          </div>
+          <div class="summary-card">
+            <span class="summary-label">Sélectionnés</span>
+            <div class="summary-value" id="countSelected">0</div>
+          </div>
+          <div class="summary-card">
+            <span class="summary-label">Date du jour</span>
+            <div class="summary-value" id="todayLabel">-</div>
+          </div>
+        </div>
+
+        <div class="table-header-actions">
+          <div class="small-note">Les lignes affichées n’ont pas encore de ticket.</div>
+          <button type="button" class="btn-primary" id="nextBtn">Suivant</button>
+        </div>
+
+        <div id="selectionStatus" class="status"></div>
+        <div class="table-wrap" id="departTableWrap">
+          <div class="loading">Chargement…</div>
+        </div>
+      </div>
+
+      <div class="panel step" id="stepTicket">
+        <div class="toolbar">
+          <button type="button" class="btn-ghost" id="backBtn">Retour</button>
+          <button type="button" class="btn-secondary" id="reloadAfterBackBtn">Rafraîchir la liste</button>
+        </div>
+
+        <div class="field-grid">
+          <div>
+            <label for="ticketInput">Nom du ticket</label>
+            <input type="text" id="ticketInput" placeholder="Ex. TICKET-DRH-2026-001">
+          </div>
+          <div>
+            <label for="creationDate">Date de création</label>
+            <input type="text" id="creationDate" class="readonly-field" readonly>
+          </div>
+          <div>
+            <label>Collaborateurs sélectionnés</label>
+            <div class="muted-inline" id="selectedListLabel">0 collaborateur sélectionné</div>
+          </div>
+        </div>
+
+        <div class="toolbar" style="margin-top: 12px;">
+          <button type="button" class="btn-primary" id="saveBtn">Enregistrer</button>
+        </div>
+
+        <div id="saveStatus" class="status"></div>
+      </div>
+    </div>
+
+    <script>
+      const state = {
+        rows: [],
+        selectedRows: new Set(),
+        step: 'selection'
+      };
+
+      function escapeHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function formatDisplayDate() {
+        try {
+          return new Date().toLocaleDateString('fr-FR');
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function setStatus(elementId, message, type) {
+        const element = document.getElementById(elementId);
+        element.textContent = message || '';
+        element.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      function setStep(step) {
+        state.step = step;
+        document.getElementById('stepSelection').classList.toggle('active', step === 'selection');
+        document.getElementById('stepTicket').classList.toggle('active', step === 'ticket');
+      }
+
+      function updateCounts() {
+        document.getElementById('countAvailable').textContent = state.rows.length;
+        document.getElementById('countSelected').textContent = state.selectedRows.size;
+        document.getElementById('selectedListLabel').textContent = state.selectedRows.size + ' collaborateur(s) sélectionné(s)';
+      }
+
+      function renderTable() {
+        const wrap = document.getElementById('departTableWrap');
+        if (!state.rows.length) {
+          wrap.innerHTML = '<div class="empty-state">Aucun départ sans ticket à traiter.</div>';
+          updateCounts();
+          return;
+        }
+
+        const rowsHtml = state.rows.map((row, index) => {
+          const checked = state.selectedRows.has(row.rowNumber) ? 'checked' : '';
+          const selectedClass = state.selectedRows.has(row.rowNumber) ? 'selected' : '';
+          return '<tr class="' + selectedClass + '">'
+            + '<td><input type="checkbox" data-row-number="' + row.rowNumber + '" ' + checked + '></td>'
+            + '<td>' + (index + 1) + '</td>'
+            + '<td>' + escapeHtml(row.timestamp) + '</td>'
+            + '<td>' + escapeHtml(row.hrbp) + '</td>'
+            + '<td>' + escapeHtml(row.matricule) + '</td>'
+            + '<td>' + escapeHtml(row.nom) + '</td>'
+            + '<td>' + escapeHtml(row.fonction) + '</td>'
+            + '<td>' + escapeHtml(row.rattachement) + '</td>'
+            + '<td>' + escapeHtml(row.dateDepart) + '</td>'
+            + '<td>' + escapeHtml(row.motif) + '</td>'
+            + '<td>' + escapeHtml(row.login) + '</td>'
+            + '<td>' + escapeHtml(row.mailConnecteo) + '</td>'
+            + '</tr>';
+        }).join('');
+
+        wrap.innerHTML = '<table>'
+          + '<thead><tr>'
+          + '<th style="width:40px;"><input type="checkbox" id="masterCheckbox"></th>'
+          + '<th>#</th>'
+          + '<th>Date insertion</th>'
+          + '<th>HRBP</th>'
+          + '<th>Matricule</th>'
+          + '<th>Nom et Prénoms</th>'
+          + '<th>Fonction</th>'
+          + '<th>Rattachement</th>'
+          + '<th>Date départ</th>'
+          + '<th>Motif</th>'
+          + '<th>Login</th>'
+          + '<th>Mail connecteo</th>'
+          + '</tr></thead>'
+          + '<tbody>' + rowsHtml + '</tbody>'
+          + '</table>';
+
+        const masterCheckbox = document.getElementById('masterCheckbox');
+        const allSelected = state.rows.length > 0 && state.rows.every(row => state.selectedRows.has(row.rowNumber));
+        const someSelected = state.rows.some(row => state.selectedRows.has(row.rowNumber));
+        masterCheckbox.checked = allSelected;
+        masterCheckbox.indeterminate = someSelected && !allSelected;
+        masterCheckbox.addEventListener('change', function () {
+          if (this.checked) {
+            state.rows.forEach(row => state.selectedRows.add(row.rowNumber));
+          } else {
+            state.selectedRows.clear();
+          }
+          renderTable();
+        });
+
+        wrap.querySelectorAll('input[type="checkbox"][data-row-number]').forEach(checkbox => {
+          checkbox.addEventListener('change', function () {
+            const rowNumber = Number(this.getAttribute('data-row-number'));
+            if (this.checked) {
+              state.selectedRows.add(rowNumber);
+            } else {
+              state.selectedRows.delete(rowNumber);
+            }
+            updateCounts();
+            renderTable();
+          });
+        });
+
+        updateCounts();
+      }
+
+      function loadDepartRows() {
+        setStatus('selectionStatus', 'Chargement des départs…', '');
+        google.script.run
+          .withSuccessHandler(function (response) {
+            if (!response || response.status !== 'success') {
+              setStatus('selectionStatus', (response && response.message) || 'Impossible de charger les départs.', 'error');
+              document.getElementById('departTableWrap').innerHTML = '<div class="empty-state">Erreur de chargement.</div>';
+              return;
+            }
+
+            state.rows = response.departs || [];
+            state.selectedRows.clear();
+            document.getElementById('todayLabel').textContent = formatDisplayDate();
+            renderTable();
+            setStatus('selectionStatus', '', '');
+          })
+          .withFailureHandler(function (error) {
+            setStatus('selectionStatus', error && error.message ? error.message : 'Erreur de chargement.', 'error');
+            document.getElementById('departTableWrap').innerHTML = '<div class="empty-state">Erreur de chargement.</div>';
+          })
+          .getTicketSidebarData();
+      }
+
+      function goToTicketStep() {
+        if (!state.selectedRows.size) {
+          setStatus('selectionStatus', 'Sélectionnez au moins un collaborateur.', 'error');
+          return;
+        }
+
+        document.getElementById('ticketInput').value = '';
+        document.getElementById('creationDate').value = formatDisplayDate();
+        setStatus('saveStatus', '', '');
+        setStep('ticket');
+      }
+
+      function saveTickets() {
+        const ticket = document.getElementById('ticketInput').value.trim();
+        if (!ticket) {
+          setStatus('saveStatus', 'Le nom du ticket est obligatoire.', 'error');
+          return;
+        }
+
+        const rows = Array.from(state.selectedRows);
+        if (!rows.length) {
+          setStatus('saveStatus', 'Aucun collaborateur sélectionné.', 'error');
+          setStep('selection');
+          return;
+        }
+
+        document.getElementById('saveBtn').disabled = true;
+        setStatus('saveStatus', 'Enregistrement en cours…', '');
+
+        google.script.run
+          .withSuccessHandler(function (response) {
+            document.getElementById('saveBtn').disabled = false;
+            if (!response || response.status !== 'success') {
+              setStatus('saveStatus', (response && response.message) || 'Échec de l’enregistrement.', 'error');
+              return;
+            }
+
+            setStatus('saveStatus', response.message || 'Ticket enregistré.', 'success');
+            setStep('selection');
+            loadDepartRows();
+          })
+          .withFailureHandler(function (error) {
+            document.getElementById('saveBtn').disabled = false;
+            setStatus('saveStatus', error && error.message ? error.message : 'Erreur lors de l’enregistrement.', 'error');
+          })
+          .saveDepartTickets({
+            ticket: ticket,
+            selectedRows: rows
+          });
+      }
+
+      document.getElementById('refreshBtn').addEventListener('click', loadDepartRows);
+      document.getElementById('reloadAfterBackBtn').addEventListener('click', loadDepartRows);
+      document.getElementById('selectAllBtn').addEventListener('click', function () {
+        state.rows.forEach(row => state.selectedRows.add(row.rowNumber));
+        renderTable();
+      });
+      document.getElementById('clearBtn').addEventListener('click', function () {
+        state.selectedRows.clear();
+        renderTable();
+      });
+      document.getElementById('nextBtn').addEventListener('click', goToTicketStep);
+      document.getElementById('backBtn').addEventListener('click', function () {
+        setStep('selection');
+      });
+      document.getElementById('saveBtn').addEventListener('click', saveTickets);
+
+      document.getElementById('ticketInput').addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          saveTickets();
+        }
+      });
+
+      loadDepartRows();
+      document.getElementById('todayLabel').textContent = formatDisplayDate();
+    </script>
+  </body>
+</html>

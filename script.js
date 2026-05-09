@@ -19,7 +19,7 @@ function toggleSidebar() {
   }
 }
 
-const API_URL = "https://script.google.com/macros/s/AKfycbzzEbuBn4FPRPCtvZpic8xdjBeZW3KkqqQ2LDBJFZOL6I37IzEjcP-8at6ahETEESY/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycby89NGDbKuvclBFZCFMGNaKZSI6MMajmmKwwr-CTiDKgA42bYkmk5c5KVOlLYIwBx0/exec";
 
 let employes = [];
 let motifsDepart = [
@@ -40,12 +40,13 @@ let isSubmitting = false; // Flag pour éviter les envois multiples
 // LOAD DATA (POST ONLY)
 // =============================
 function loadData() {
-  const formData = new FormData();
-  formData.append("type", "getData");
+  const params = new URLSearchParams();
+  params.append("type", "getData");
 
   fetch(API_URL, {
     method: "POST",
-    body: formData,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: params.toString(),
     timeout: 10000 // Timeout de 10 secondes
   })
     .then(res => {
@@ -576,26 +577,27 @@ function confirmDepart() {
     confirmBtn.style.cursor = 'not-allowed';
   }
 
-  const formData = new FormData();
-  formData.append("type", "depart");
-  formData.append("hrbp", document.getElementById('hrbp').value);
-  formData.append("matricule", document.getElementById('matricule').value);
-  formData.append("nom", document.getElementById('nom').value);
-  formData.append("fonction", document.getElementById('fonction').value);
-  formData.append("dateIntegration", document.getElementById('dateIntegration') ? document.getElementById('dateIntegration').value : '');
-  formData.append("statut", document.getElementById('statut') ? document.getElementById('statut').value : '');
-  formData.append("rattachement", document.getElementById('rattachement') ? document.getElementById('rattachement').value : '');
-  formData.append("login", document.getElementById('login') ? document.getElementById('login').value : '');
-  formData.append("mailConnecteo", document.getElementById('mailConnecteo') ? document.getElementById('mailConnecteo').value : '');
-  formData.append("dateDepart", document.getElementById('dateDepart').value);
-  formData.append("motif", document.getElementById('motif').value);
-  formData.append("raison", document.getElementById('raison').value);
-  formData.append("extraLogin", '');
-  formData.append("extraMail", '');
+  const params = new URLSearchParams();
+  params.append("type", "depart");
+  params.append("hrbp", document.getElementById('hrbp').value);
+  params.append("matricule", document.getElementById('matricule').value);
+  params.append("nom", document.getElementById('nom').value);
+  params.append("fonction", document.getElementById('fonction').value);
+  params.append("dateIntegration", document.getElementById('dateIntegration') ? document.getElementById('dateIntegration').value : '');
+  params.append("statut", document.getElementById('statut') ? document.getElementById('statut').value : '');
+  params.append("rattachement", document.getElementById('rattachement') ? document.getElementById('rattachement').value : '');
+  params.append("login", document.getElementById('login') ? document.getElementById('login').value : '');
+  params.append("mailConnecteo", document.getElementById('mailConnecteo') ? document.getElementById('mailConnecteo').value : '');
+  params.append("dateDepart", document.getElementById('dateDepart').value);
+  params.append("motif", document.getElementById('motif').value);
+  params.append("raison", document.getElementById('raison').value);
+  params.append("extraLogin", '');
+  params.append("extraMail", '');
 
   fetch(API_URL, {
     method: "POST",
-    body: formData
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: params.toString()
   })
     .then(res => res.json())
     .then(data => {
@@ -740,10 +742,22 @@ function confirmMouvement() {
   formData.append("typeMvt", typeMvt);
   formData.append("isFonctionNouvelle", isFonctionNouvelle);
   formData.append("raisonMvt", document.getElementById('raisonMvt').value);
+  const params = new URLSearchParams();
+  params.append("type", "mouvement");
+  params.append("hrbp", document.getElementById('hrbp').value);
+  params.append("matricule", document.getElementById('matricule').value);
+  params.append("nom", document.getElementById('nom').value);
+  params.append("dateMvt", document.getElementById('dateMvt').value);
+  params.append("ancienPoste", document.getElementById('ancienPoste').value);
+  params.append("nouveauPoste", nouveauPoste);
+  params.append("typeMvt", typeMvt);
+  params.append("isFonctionNouvelle", isFonctionNouvelle);
+  params.append("raisonMvt", document.getElementById('raisonMvt').value);
 
   fetch(API_URL, {
     method: "POST",
-    body: formData
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: params.toString()
   })
     .then(res => res.json())
     .then(data => {
@@ -766,9 +780,9 @@ function confirmMouvement() {
 // SHOW ALL DEPARTS / MOUVEMENTS MODALS
 // =============================
 function openAllDeparts(){
-  const formData = new FormData();
-  formData.append('type','getEntries');
-  fetch(API_URL,{method:'POST', body: formData})
+  const params = new URLSearchParams();
+  params.append('type','getEntries');
+  fetch(API_URL,{method:'POST', body: params})
     .then(res=>res.json())
     .then(data=>{
       if(data.status==='success'){
@@ -785,9 +799,9 @@ function openAllDeparts(){
 }
 
 function openAllMouvements(){
-  const formData = new FormData();
-  formData.append('type','getEntries');
-  fetch(API_URL,{method:'POST', body: formData})
+  const params = new URLSearchParams();
+  params.append('type','getEntries');
+  fetch(API_URL,{method:'POST', body: params})
     .then(res=>res.json())
     .then(data=>{
       if(data.status==='success'){

@@ -53,8 +53,8 @@
         // Build depart table
         var departHtml = '';
         if(data.depart && data.depart.length){
-          departHtml += '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Date intégration</th><th>Statut</th><th>Nom</th><th>Fonction</th><th>Rattachement</th><th>Login</th><th>Mail</th><th>Date départ</th><th>Motif</th><th>Raison</th></tr>';
-          data.depart.slice().reverse().forEach(function(r){ departHtml += '<tr><td>'+formatDate(r.timestamp)+'</td><td>'+ (r.hrbp||'') +'</td><td>'+r.matricule+'</td><td>'+ (r.dateIntegration||'') +'</td><td>'+ (r.statut||'') +'</td><td>'+r.nom+'</td><td>'+ (r.fonction||'') +'</td><td>'+ (r.rattachement||'') +'</td><td>'+ (r.login||'') +'</td><td>'+ (r.mailConnecteo||'') +'</td><td>'+ (r.dateDepart||'') +'</td><td>'+ (r.motif||'') +'</td><td>'+ (r.raison||'') +'</td></tr>'; });
+          departHtml += '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Date intégration</th><th>Statut</th><th>Nom</th><th>Fonction</th><th>Rattachement</th><th>Login</th><th>Mail</th><th>Date départ</th><th>Motif</th><th>Raison</th><th>Ticket</th><th>Date création</th></tr>';
+          data.depart.slice().reverse().forEach(function(r){ departHtml += '<tr><td>'+formatDate(r.timestamp)+'</td><td>'+ (r.hrbp||'') +'</td><td>'+r.matricule+'</td><td>'+ (r.dateIntegration||'') +'</td><td>'+ (r.statut||'') +'</td><td>'+r.nom+'</td><td>'+ (r.fonction||'') +'</td><td>'+ (r.rattachement||'') +'</td><td>'+ (r.login||'') +'</td><td>'+ (r.mailConnecteo||'') +'</td><td>'+ (r.dateDepart||'') +'</td><td>'+ (r.motif||'') +'</td><td>'+ (r.raison||'') +'</td><td>'+ (r.ticket||'') +'</td><td>'+ (r.dateCreation||'') +'</td></tr>'; });
           departHtml += '</table>';
         } else { departHtml = '<div>Aucun départ</div>'; }
 

@@ -105,6 +105,11 @@ function App() {
     dateFrom: '',
     dateTo: ''
   });
+  const [ticketStep, setTicketStep] = useState('selection');
+  const [ticketSelectedRows, setTicketSelectedRows] = useState([]);
+  const [ticketName, setTicketName] = useState('');
+  const [ticketMessage, setTicketMessage] = useState('');
+  const [isTicketSubmitting, setIsTicketSubmitting] = useState(false);
 
   const allFonctions = useMemo(
     () => Array.from(new Set(employes.map(emp => emp.fonction))).sort(),
@@ -147,6 +152,19 @@ function App() {
     if (!mouvementForm.selectedEmployee) return allFonctions;
     return allFonctions.filter(fonction => fonction !== mouvementForm.selectedEmployee.fonction);
   }, [allFonctions, mouvementForm.selectedEmployee]);
+
+  const ticketRows = useMemo(() => {
+    return sheetEntries.depart;
+  }, [sheetEntries.depart]);
+
+  const ticketAvailableRows = useMemo(() => {
+    return ticketRows.filter(record => !String(record.ticket || '').trim());
+  }, [ticketRows]);
+
+  const ticketSelectedRecords = useMemo(() => {
+    const selected = new Set(ticketSelectedRows.map(Number));
+    return ticketRows.filter(record => selected.has(Number(record.rowNumber)));
+  }, [ticketRows, ticketSelectedRows]);
 
   // Calculer les KPIs
   const kpiStats = useMemo(() => {
@@ -207,12 +225,13 @@ function App() {
     setLoadError('');
 
     try {
-      const formData = new FormData();
-      formData.append('type', 'getData');
+      const params = new URLSearchParams();
+      params.append('type', 'getData');
 
       const response = await fetch(API_URL, {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: params.toString()
       });
 
       if (!response.ok) {
@@ -240,12 +259,13 @@ function App() {
     setHistoryError('');
 
     try {
-      const formData = new FormData();
-      formData.append('type', 'getEntries');
+      const params = new URLSearchParams();
+      params.append('type', 'getEntries');
 
       const response = await fetch(API_URL, {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: params.toString()
       });
 
       if (!response.ok) {
@@ -258,8 +278,13 @@ function App() {
         throw new Error(data.message || 'Erreur serveur');
       }
 
+      const normalizedDepartRows = (data.depart || []).map((record, index) => ({
+        ...record,
+        rowNumber: record.rowNumber ?? index + 2
+      }));
+
       setSheetEntries({
-        depart: data.depart || [],
+        depart: normalizedDepartRows,
         mouvement: data.mouvement || []
       });
     } catch (error) {
@@ -270,6 +295,35 @@ function App() {
     }
   }
 
+  async function testBackend() {
+    try {
+      const params = new URLSearchParams();
+      params.append('type', 'debugEcho');
+      params.append('client', 'react-app');
+
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: params.toString()
+      });
+
+      const data = await response.json();
+      setTicketMessage('Test response: ' + JSON.stringify(data));
+      return data;
+    } catch (err) {
+      setTicketMessage('Test failed: ' + (err.message || err));
+      return null;
+    }
+  }
+
+  function resetTicketState() {
+    setTicketStep('selection');
+    setTicketSelectedRows([]);
+    setTicketName('');
+    setTicketMessage('');
+    setIsTicketSubmitting(false);
+  }
+
   function handleSidebarToggle() {
     setSidebarCollapsed(value => !value);
   }
@@ -277,6 +331,11 @@ function App() {
   function handleTabChange(tab) {
     setSubmitErrors({});
     setActiveTab(tab);
+    if (tab !== 'ticket') {
+      setTicketMessage('');
+    } else {
+      resetTicketState();
+    }
   }
 
   function handleDepartFieldChange(field, value) {
@@ -427,16 +486,17 @@ function App() {
     }
 
     setIsSubmitting(true);
-    const formData = new FormData();
-    formData.append('type', modalMode);
+    const params = new URLSearchParams();
+    params.append('type', modalMode);
     Object.entries(modalData).forEach(([key, value]) => {
-      formData.append(key, value);
+      params.append(key, value == null ? '' : String(value));
     });
 
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: params.toString()
       });
       const result = await response.json();
 
@@ -481,6 +541,80 @@ function App() {
     }
   }
 
+  function toggleTicketRow(rowNumber) {
+    setTicketSelectedRows(prev => {
+      const rowValue = Number(rowNumber);
+      return prev.includes(rowValue)
+        ? prev.filter(item => item !== rowValue)
+        : [...prev, rowValue];
+    });
+  }
+
+  function selectAllTicketRows() {
+    setTicketSelectedRows(ticketAvailableRows.map(record => Number(record.rowNumber)));
+  }
+
+  function clearTicketSelection() {
+    setTicketSelectedRows([]);
+  }
+
+  function goToTicketDetails() {
+    if (ticketSelectedRows.length === 0) {
+      setTicketMessage('Sélectionnez au moins un départ.');
+      return;
+    }
+
+    setTicketMessage('');
+    setTicketStep('details');
+  }
+
+  async function saveTicketBatch() {
+    if (!ticketName.trim()) {
+      setTicketMessage('Le nom du ticket est obligatoire.');
+      return;
+    }
+
+    if (ticketSelectedRows.length === 0) {
+      setTicketMessage('Aucun départ sélectionné.');
+      setTicketStep('selection');
+      return;
+    }
+
+    setIsTicketSubmitting(true);
+    setTicketMessage('');
+
+    const params = new URLSearchParams();
+    params.append('type', 'saveTickets');
+    params.append('ticket', ticketName.trim());
+    params.append('selectedRows', JSON.stringify(ticketSelectedRows));
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: params.toString()
+      });
+
+      const result = await response.json();
+
+      if (result.status !== 'success') {
+        throw new Error(result.message || 'Erreur serveur');
+      }
+
+      await loadHistory();
+      setSuccessMessage('✅ Ticket enregistré avec succès');
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 4000);
+      resetTicketState();
+      setTicketMessage(result.message || 'Ticket enregistré.');
+    } catch (error) {
+      setTicketMessage(error.message || 'Impossible d’enregistrer le ticket.');
+    } finally {
+      setIsTicketSubmitting(false);
+    }
+  }
+
   function closeModal() {
     setModalMode(null);
     setModalData(null);
@@ -517,6 +651,227 @@ function App() {
     }
 
     return null;
+  }
+
+  function renderTicketContent() {
+    const selectedSet = new Set(ticketSelectedRows.map(Number));
+    const allSelected = ticketAvailableRows.length > 0 && ticketAvailableRows.every(record => selectedSet.has(Number(record.rowNumber)));
+    const someSelected = ticketAvailableRows.some(record => selectedSet.has(Number(record.rowNumber)));
+    const todayLabel = formatDate(new Date());
+
+    return (
+      <div className="kpi-dashboard ticket-dashboard">
+        <div className="kpi-dashboard-header">
+          <h3><i className="fas fa-ticket" /> Création de ticket</h3>
+          <button className="kpi-dashboard-refresh" onClick={loadHistory} title="Rafraîchir l'historique">
+            <i className="fas fa-rotate" />
+          </button>
+          <button className="kpi-dashboard-refresh" onClick={testBackend} title="Tester le backend" style={{marginLeft:8}}>
+            <i className="fas fa-bug" />
+          </button>
+        </div>
+
+        {isHistoryLoading ? (
+          <div className="kpi-dashboard-empty">
+            <p>Chargement des départs sans ticket…</p>
+          </div>
+        ) : historyError ? (
+          <div className="kpi-dashboard-empty">
+            <p>{historyError}</p>
+          </div>
+        ) : ticketStep === 'selection' ? (
+          <div className="kpi-dashboard-section">
+            <div className="kpi-dashboard-item" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
+              <span className="kpi-dashboard-function">Départs disponibles</span>
+              <span className="kpi-count depart-count">{ticketAvailableRows.length}</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+              <div className="stat-card depart">
+                <div className="stat-label">Sélectionnés</div>
+                <div className="stat-value">{ticketSelectedRows.length}</div>
+              </div>
+              <div className="stat-card mouvement">
+                <div className="stat-label">Date du jour</div>
+                <div className="stat-value">{todayLabel}</div>
+              </div>
+              <div className="stat-card depart">
+                <div className="stat-label">Écran</div>
+                <div className="stat-value">1 / 2</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+              <button type="button" className="kpi-filter-clear" onClick={selectAllTicketRows}>Tout cocher</button>
+              <button type="button" className="kpi-filter-clear" onClick={clearTicketSelection}>Tout décocher</button>
+              <button type="button" className="kpi-filter-clear" onClick={() => loadHistory()}>Rafraîchir</button>
+              <button type="button" className="nav-btn active" style={{ marginLeft: 'auto' }} onClick={goToTicketDetails}>
+                Suivant
+              </button>
+            </div>
+
+            {ticketMessage ? <div className="error-text" style={{ marginBottom: 12 }}>{ticketMessage}</div> : null}
+
+            {ticketRows.length === 0 ? (
+              <div className="kpi-dashboard-empty">
+                <p>Aucun départ sans ticket</p>
+              </div>
+            ) : (
+              <div className="table-scroll">
+                <table className="kpi-table">
+                  <thead>
+                    <tr>
+                      <th>
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          ref={element => {
+                            if (element) {
+                              element.indeterminate = someSelected && !allSelected;
+                            }
+                          }}
+                          onChange={event => {
+                            if (event.target.checked) {
+                              selectAllTicketRows();
+                            } else {
+                              clearTicketSelection();
+                            }
+                          }}
+                        />
+                      </th>
+                      <th>Date insertion</th>
+                      <th>HRBP</th>
+                      <th>Matricule</th>
+                      <th>Date intégration</th>
+                      <th>Statut</th>
+                      <th>Nom</th>
+                      <th>Fonction</th>
+                      <th>Rattachement</th>
+                      <th>Date départ</th>
+                      <th>Motif</th>
+                      <th>Raison</th>
+                      <th>Login</th>
+                      <th>Mail</th>
+                      <th>Ticket</th>
+                      <th>Date création</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ticketRows.map((record, index) => {
+                      const rowKey = record.rowNumber ?? index;
+                      const isSelected = selectedSet.has(Number(record.rowNumber));
+                      const alreadyTicketed = Boolean(String(record.ticket || '').trim());
+                      return (
+                        <tr key={record.id || `ticket-row-${rowKey}`} className={isSelected ? 'selected-row' : ''}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              disabled={alreadyTicketed}
+                              checked={isSelected}
+                              onChange={() => toggleTicketRow(rowKey)}
+                            />
+                          </td>
+                          <td>{formatDate(record.timestamp)}</td>
+                          <td>{record.hrbp}</td>
+                          <td>{record.matricule}</td>
+                          <td>{formatDate(record.dateIntegration)}</td>
+                          <td>{record.statut}</td>
+                          <td>{record.nom}</td>
+                          <td>{record.fonction}</td>
+                          <td>{record.rattachement}</td>
+                          <td>{formatDate(record.dateDepart)}</td>
+                          <td>{record.motif}</td>
+                          <td>{record.raison}</td>
+                          <td>{record.login}</td>
+                          <td>{record.mailConnecteo}</td>
+                          <td>{record.ticket || ''}</td>
+                          <td>{record.dateCreation ? formatDate(record.dateCreation) : ''}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="kpi-dashboard-section">
+            <div className="kpi-dashboard-item" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
+              <span className="kpi-dashboard-function">Ticket sélectionné</span>
+              <span className="kpi-count mouvement-count">{ticketSelectedRecords.length} collaborateur(s)</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+              <div className="stat-card depart">
+                <div className="stat-label">Date de création</div>
+                <div className="stat-value">{todayLabel}</div>
+              </div>
+              <div className="stat-card mouvement">
+                <div className="stat-label">Écran</div>
+                <div className="stat-value">2 / 2</div>
+              </div>
+            </div>
+
+            <div className="kpi-filter-grid">
+              <div className="kpi-filter-field">
+                <label htmlFor="ticket-name">Nom du ticket :</label>
+                <input
+                  id="ticket-name"
+                  type="text"
+                  placeholder="Ex. Ticket départ mai 2026"
+                  value={ticketName}
+                  onChange={event => setTicketName(event.target.value)}
+                />
+              </div>
+              <div className="kpi-filter-field">
+                <label htmlFor="ticket-date">Date de création :</label>
+                <input id="ticket-date" type="text" value={todayLabel} readOnly />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, marginBottom: 12 }}>
+              <button type="button" className="kpi-filter-clear" onClick={() => setTicketStep('selection')}>Retour</button>
+              <button type="button" className="kpi-filter-clear" onClick={() => setTicketName('')}>Vider</button>
+              <button type="button" className="nav-btn active" style={{ marginLeft: 'auto' }} onClick={saveTicketBatch} disabled={isTicketSubmitting}>
+                {isTicketSubmitting ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </div>
+
+            {ticketMessage ? <div className="error-text" style={{ marginBottom: 12 }}>{ticketMessage}</div> : null}
+
+            <div className="table-scroll">
+              <table className="kpi-table">
+                <thead>
+                  <tr>
+                    <th>Date insertion</th>
+                    <th>Matricule</th>
+                    <th>Nom</th>
+                    <th>Fonction</th>
+                    <th>Rattachement</th>
+                    <th>Date départ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ticketSelectedRecords.map((record, index) => {
+                    const rowKey = record.rowNumber ?? index;
+                    return (
+                    <tr key={record.id || `ticket-selected-${rowKey}`}>
+                      <td>{formatDate(record.timestamp)}</td>
+                      <td>{record.matricule}</td>
+                      <td>{record.nom}</td>
+                      <td>{record.fonction}</td>
+                      <td>{record.rattachement}</td>
+                      <td>{formatDate(record.dateDepart)}</td>
+                    </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   function renderKPIContent() {
@@ -1058,6 +1413,13 @@ function App() {
           <i className="fas fa-table" />
           <span>Tableau</span>
         </button>
+        <button
+          className={`nav-btn ${activeTab === 'ticket' ? 'active' : ''}`}
+          onClick={() => handleTabChange('ticket')}
+        >
+          <i className="fas fa-ticket" />
+          <span>Ticket</span>
+        </button>
       </nav>
     </div>
 
@@ -1068,6 +1430,8 @@ function App() {
             ? 'Tableau de bord KPI'
             : activeTab === 'tableau'
             ? 'Tableaux des collaborateurs'
+            : activeTab === 'ticket'
+            ? 'Création de ticket'
             : 'Mouvement de notre Collaborateur'}
         </h2>
       </div>
@@ -1081,6 +1445,10 @@ function App() {
           ) : activeTab === 'tableau' ? (
             <>
               {!isLoading && !loadError && dataLoaded && employes.length > 0 && renderTableauContent()}
+            </>
+          ) : activeTab === 'ticket' ? (
+            <>
+              {!isLoading && !loadError && dataLoaded && employes.length > 0 && renderTicketContent()}
             </>
           ) : !isLoading && !loadError && dataLoaded && employes.length > 0 && (
             <form onSubmit={activeTab === 'depart' ? handleSubmitDepart : handleSubmitMouvement}>

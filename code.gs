@@ -55,6 +55,29 @@ function handleRequest(params) {
       });
     }
 
+    if (type === "getTicketRows") {
+      return jsonResponse({
+        status: "success",
+        departs: readDepartRowsForTicketing().departs
+      });
+    }
+
+    if (type === "saveTickets") {
+      const result = saveDepartTickets({
+        ticket: params.ticket,
+        selectedRows: parseSelectedRows(params.selectedRows)
+      });
+
+      return jsonResponse(result);
+    }
+
+    if (type === "debugEcho") {
+      return jsonResponse({
+        status: 'success',
+        received: params
+      });
+    }
+
     // ============================
     // DEPART (avec HRBP)
     // ============================
@@ -74,7 +97,9 @@ function handleRequest(params) {
         params.motif || '',
         params.raison || '',
         params.login || '',
-        params.mailConnecteo || ''
+        params.mailConnecteo || '',
+        '',
+        ''
       ]);
 
       return jsonResponse({
@@ -143,9 +168,165 @@ function jsonResponse(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function getHeaderIndex(headers, headerName) {
+  return headers.indexOf(normalizeHeader(headerName));
+}
+
+function parseSelectedRows(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return value.split(',').map(item => item.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function getSheetRowsWithHeaders(sheetName) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return { sheet: null, data: [], headers: [] };
+
+  const data = sheet.getDataRange().getValues();
+  const headers = (data[0] || []).map(normalizeHeader);
+  return { sheet, data, headers };
+}
+
+function readDepartRowsForTicketing() {
+  const { sheet, data, headers } = getSheetRowsWithHeaders('Départ');
+  const ticketIndex = getHeaderIndex(headers, 'Ticket');
+  const dateCreationIndex = getHeaderIndex(headers, 'Date de création');
+
+  const getValue = (row, headerName) => {
+    const index = getHeaderIndex(headers, headerName);
+    return index >= 0 ? row[index] : '';
+  };
+
+  const departs = [];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (!row || !getValue(row, 'Matricule')) continue;
+
+    const ticketValue = ticketIndex >= 0 ? String(row[ticketIndex] || '').trim() : '';
+    if (ticketValue) continue;
+
+    departs.push({
+      rowNumber: i + 1,
+      timestamp: formatDate(getValue(row, "Date d'insertion")) || '',
+      hrbp: String(getValue(row, 'hrbp') || '').trim(),
+      matricule: String(getValue(row, 'Matricule') || '').trim(),
+      dateIntegration: formatDate(getValue(row, "Date d'intégration")) || '',
+      statut: String(getValue(row, 'Statut') || '').trim(),
+      nom: String(getValue(row, 'Nom et Prénoms') || '').trim(),
+      fonction: String(getValue(row, 'Fonction') || '').trim(),
+      rattachement: String(getValue(row, 'Rattachement') || '').trim(),
+      dateDepart: formatDate(getValue(row, 'Date de départ')) || '',
+      motif: String(getValue(row, 'Motif de départ') || getValue(row, 'Motif du départ') || '').trim(),
+      raison: String(getValue(row, 'Raison de départ') || getValue(row, 'Raison du départ') || '').trim(),
+      login: String(getValue(row, 'Login') || '').trim(),
+      mailConnecteo: String(getValue(row, 'Mail connecteo') || getValue(row, 'Mail Connecteo') || '').trim(),
+      ticket: ticketIndex >= 0 ? String(row[ticketIndex] || '').trim() : '',
+      dateCreation: dateCreationIndex >= 0 ? formatDate(row[dateCreationIndex]) || '' : ''
+    });
+  }
+
+  return { sheet, headers, departs };
+}
+
+function getTicketSidebarData() {
+  try {
+    const { departs } = readDepartRowsForTicketing();
+    return {
+      status: 'success',
+      departs: departs
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err.toString()
+    };
+  }
+}
+
+function saveDepartTickets(payload) {
+  try {
+    const ticket = String(payload && payload.ticket ? payload.ticket : '').trim();
+    const selectedRows = Array.isArray(payload && payload.selectedRows) ? payload.selectedRows : [];
+
+    if (!ticket) {
+      return { status: 'error', message: 'Le ticket est obligatoire.' };
+    }
+
+    if (!selectedRows.length) {
+      return { status: 'error', message: 'Sélectionnez au moins un collaborateur.' };
+    }
+
+    const { sheet, headers, departs } = readDepartRowsForTicketing();
+    if (!sheet) {
+      return { status: 'error', message: 'La feuille Départ est introuvable.' };
+    }
+
+    const ticketIndex = getHeaderIndex(headers, 'Ticket');
+    const dateCreationIndex = getHeaderIndex(headers, 'Date de création');
+
+    if (ticketIndex < 0 || dateCreationIndex < 0) {
+      return { status: 'error', message: 'Les colonnes Ticket et Date de création doivent exister dans la feuille Départ.' };
+    }
+
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+    const allowedRows = new Set(departs.map(item => item.rowNumber));
+    let updatedCount = 0;
+
+    selectedRows.forEach(rowNumber => {
+      const numericRow = Number(rowNumber);
+      if (!allowedRows.has(numericRow)) return;
+
+      sheet.getRange(numericRow, ticketIndex + 1).setValue(ticket);
+      sheet.getRange(numericRow, dateCreationIndex + 1).setValue(today);
+      updatedCount++;
+    });
+
+    return {
+      status: 'success',
+      message: updatedCount > 1 ? 'Tickets enregistrés avec succès.' : 'Ticket enregistré avec succès.',
+      updatedCount: updatedCount
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err.toString()
+    };
+  }
+}
+
 // Affiche une sidebar contenant l'historique des enregistrements
 function showSidebar() {
   const html = HtmlService.createHtmlOutputFromFile('Sidebar').setTitle('Historique des enregistrements');
+  try {
+    SpreadsheetApp.getUi().showSidebar(html);
+    return;
+  } catch (e) {
+    // si ce script est attaché à un document ou formulaire
+  }
+
+  try {
+    DocumentApp.getUi().showSidebar(html);
+    return;
+  } catch (e) {}
+
+  try {
+    FormApp.getUi().showSidebar(html);
+    return;
+  } catch (e) {}
+
+  Logger.log('Impossible d afficher la sidebar: aucun UI container trouvé');
+}
+
+function showTicketSidebar() {
+  const html = HtmlService.createHtmlOutputFromFile('TicketSidebar').setTitle('Création de ticket');
   try {
     SpreadsheetApp.getUi().showSidebar(html);
     return;
@@ -183,6 +364,7 @@ function getEntries() {
     for (let i = 1; i < data.length; i++) {
       if (data[i] && getValue(data[i], 'Matricule')) {
         result.depart.push({
+          rowNumber: i + 1,
           timestamp: formatDate(getValue(data[i], "Date d'insertion")) || new Date(),
           hrbp: getValue(data[i], 'hrbp') || '',
           matricule: String(getValue(data[i], 'Matricule') || ''),
@@ -195,7 +377,9 @@ function getEntries() {
           motif: getValue(data[i], "Motif de départ") || getValue(data[i], "Motif du départ") || '',
           raison: getValue(data[i], "Raison de départ") || getValue(data[i], "Raison du départ") || '',
           login: String(getValue(data[i], 'Login') || ''),
-          mailConnecteo: String(getValue(data[i], 'Mail connecteo') || getValue(data[i], 'Mail Connecteo') || '')
+          mailConnecteo: String(getValue(data[i], 'Mail connecteo') || getValue(data[i], 'Mail Connecteo') || ''),
+          ticket: String(getValue(data[i], 'Ticket') || '').trim(),
+          dateCreation: formatDate(getValue(data[i], 'Date de création')) || ''
         });
       }
     }
@@ -233,7 +417,11 @@ function getEntries() {
 // Ajoute un menu dans l'UI pour ouvrir la sidebar
 function onOpen() {
   try {
-    SpreadsheetApp.getUi().createMenu('Mouvement').addItem('Historique','showSidebar').addToUi();
+    SpreadsheetApp.getUi()
+      .createMenu('Mouvement')
+      .addItem('Historique', 'showSidebar')
+      .addItem('Création de ticket', 'showTicketSidebar')
+      .addToUi();
   } catch (e) {
     // ignore si pas dans un spreadsheet
   }
