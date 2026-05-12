@@ -85,15 +85,15 @@ function handleRequest(params) {
       const sheet = ss.getSheetByName("Départ");
 
       sheet.appendRow([
-        formatDate(new Date()),
+        formatSheetDate(new Date()),
         params.hrbp || '',          // HRBP
         params.matricule || '',
-        formatDate(params.dateIntegration) || '',
+        formatSheetDate(params.dateIntegration) || '',
         params.statut || '',
         params.nom || '',
         params.fonction || '',
         params.rattachement || '',
-        formatDate(params.dateDepart) || '',
+        formatSheetDate(params.dateDepart) || '',
         params.motif || '',
         params.raison || '',
         params.login || '',
@@ -115,11 +115,11 @@ function handleRequest(params) {
       const sheet = ss.getSheetByName("Mouvement");
 
       sheet.appendRow([
-        formatDate(new Date()),
+        formatSheetDate(new Date()),
         params.hrbp || '',          // ✅ NOUVELLE COLONNE
         params.matricule || '',
         params.nom || '',
-        formatDate(params.dateMvt) || '',
+        formatSheetDate(params.dateMvt) || '',
         params.ancienPoste || '',
         params.nouveauPoste || '',
         params.typeMvt || '',
@@ -157,6 +157,17 @@ function formatDate(value) {
     const d = (value instanceof Date) ? value : new Date(value);
     if (isNaN(d.getTime())) return String(value);
     return Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  } catch (e) {
+    return String(value);
+  }
+}
+
+function formatSheetDate(value) {
+  if (!value) return '';
+  try {
+    const d = (value instanceof Date) ? value : new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   } catch (e) {
     return String(value);
   }
@@ -401,11 +412,16 @@ function getEntries() {
           hrbp: getValue2(data2[i], 'hrbp') || '',
           matricule: String(getValue2(data2[i], 'Matricule') || ''),
           nom: String(getValue2(data2[i], 'Nom et Prénoms') || getValue2(data2[i], 'Nom') || ''),
-          dateMvt: formatDate(getValue2(data2[i], "Date du mouvement") || getValue2(data2[i], "Date de mouvement")) || '',
+          dateMvt: formatDate(
+            getValue2(data2[i], "Date du mouvement") ||
+            getValue2(data2[i], "Date de mouvement") ||
+            getValue2(data2[i], "Date du MVT") ||
+            getValue2(data2[i], "Date MVT")
+          ) || '',
           ancienPoste: getValue2(data2[i], "Ancien poste") || getValue2(data2[i], "Ancien Poste") || '',
           nouveauPoste: getValue2(data2[i], "Nouveau poste") || getValue2(data2[i], "Nouveau Poste") || '',
-          typeMvt: getValue2(data2[i], "Type de mouvement") || getValue2(data2[i], "Type du mouvement") || '',
-          raisonMvt: getValue2(data2[i], "Raison du mouvement") || getValue2(data2[i], "Raison de mouvement") || ''
+          typeMvt: getValue2(data2[i], "Type de mouvement") || getValue2(data2[i], "Type du mouvement") || getValue2(data2[i], "Type du MVT") || getValue2(data2[i], "Type MVT") || '',
+          raisonMvt: getValue2(data2[i], "Raison du mouvement") || getValue2(data2[i], "Raison de mouvement") || getValue2(data2[i], "Raison du MVT") || getValue2(data2[i], "Raison MVT") || ''
         });
       }
     }

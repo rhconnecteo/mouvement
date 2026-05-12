@@ -63,15 +63,34 @@ function normalizeEmployee(employee) {
 
 function formatDate(value) {
   if (!value) return '';
+
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return '';
+    const day = String(value.getDate()).padStart(2, '0');
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const year = value.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  const text = String(value).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) {
+    return text;
+  }
+
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  }
+
   try {
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return String(value);
+    const d = new Date(text);
+    if (isNaN(d.getTime())) return text;
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
-    return day + '/' + month + '/' + year;
+    return `${day}/${month}/${year}`;
   } catch (e) {
-    return String(value);
+    return text;
   }
 }
 
