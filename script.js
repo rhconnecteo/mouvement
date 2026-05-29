@@ -19,7 +19,7 @@ function toggleSidebar() {
   }
 }
 
-const API_URL = "https://script.google.com/macros/s/AKfycby89NGDbKuvclBFZCFMGNaKZSI6MMajmmKwwr-CTiDKgA42bYkmk5c5KVOlLYIwBx0/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzDCrEKFIP9yakgMxY0lLb3P62eyiltyfJXs2wFvgVKzbgfG7FlF2cTw1oL0dmZNPsW/exec";
 
 let employes = [];
 let motifsDepart = [
@@ -788,9 +788,9 @@ function openAllDeparts(){
       if(data.status==='success'){
         const rows = data.depart || [];
         if(rows.length===0){ showModalContent('Départs','<div>Aucun départ</div>'); return; }
-        let html = '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Fonction</th><th>Rattachement</th><th>Date départ</th><th>Motif</th></tr>';
+        let html = '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Fonction</th><th>Rattachement</th><th>Date départ</th><th>Motif</th><th>Checking</th></tr>';
         rows.slice().reverse().forEach(r=>{
-          html += `<tr><td>${r.timestamp||''}</td><td>${r.hrbp||''}</td><td>${r.matricule||''}</td><td>${r.nom||''}</td><td>${r.fonction||''}</td><td>${r.rattachement||''}</td><td>${r.dateDepart||''}</td><td>${r.motif||''}</td></tr>`;
+          html += `<tr style="${r.checking ? 'background:#f0fdf4;' : ''}"><td>${r.timestamp||''}</td><td>${r.hrbp||''}</td><td>${r.matricule||''}</td><td>${r.nom||''}</td><td>${r.fonction||''}</td><td>${r.rattachement||''}</td><td>${r.dateDepart||''}</td><td>${r.motif||''}</td><td>${r.checking ? 'Oui' : 'Non'}</td></tr>`;
         });
         html += '</table>';
         showModalContent('Tous les Départs', html);
@@ -807,9 +807,9 @@ function openAllMouvements(){
       if(data.status==='success'){
         const rows = data.mouvement || [];
         if(rows.length===0){ showModalContent('Mouvements','<div>Aucun mouvement</div>'); return; }
-        let html = '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Date mvt</th><th>Type</th><th>Ancien</th><th>Nouveau</th></tr>';
+        let html = '<table style="width:100%;border-collapse:collapse"><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Date mvt</th><th>Type</th><th>Ancien</th><th>Nouveau</th><th>Checking</th></tr>';
         rows.slice().reverse().forEach(r=>{
-          html += `<tr><td>${r.timestamp||''}</td><td>${r.hrbp||''}</td><td>${r.matricule||''}</td><td>${r.nom||''}</td><td>${r.dateMvt||''}</td><td>${r.typeMvt||''}</td><td>${r.ancienPoste||''}</td><td>${r.nouveauPoste||''}</td></tr>`;
+          html += `<tr style="${r.checking ? 'background:#f0fdf4;' : ''}"><td>${r.timestamp||''}</td><td>${r.hrbp||''}</td><td>${r.matricule||''}</td><td>${r.nom||''}</td><td>${r.dateMvt||''}</td><td>${r.typeMvt||''}</td><td>${r.ancienPoste||''}</td><td>${r.nouveauPoste||''}</td><td>${r.checking ? 'Oui' : 'Non'}</td></tr>`;
         });
         html += '</table>';
         showModalContent('Tous les Mouvements', html);

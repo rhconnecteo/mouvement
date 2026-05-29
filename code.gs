@@ -1,4 +1,5 @@
 const SHEET_ID = "1Jh_ZS3lYL-wt_UHU51Ium7FkPSOLrEURdf-AkIqy5Cc";
+const NOTIFICATION_EMAIL = "rhbiconnecteo@gmail.com";
 
 function doPost(e) {
   return handleRequest(e.parameter);
@@ -45,6 +46,16 @@ function handleRequest(params) {
       });
     }
 
+    if (type === "updateChecking") {
+      const result = updateCheckingState({
+        sheetName: params.sheetName,
+        rowNumber: params.rowNumber,
+        checking: params.checking
+      });
+
+      return jsonResponse(result);
+    }
+
     // ============================
     // GET ENTRIES
     // ============================
@@ -83,9 +94,11 @@ function handleRequest(params) {
     // ============================
     if (type === "depart") {
       const sheet = ss.getSheetByName("Départ");
+      const insertDate = new Date();
+      const departDate = formatSheetDate(params.dateDepart) || '';
 
       sheet.appendRow([
-        formatSheetDate(new Date()),
+        formatSheetDate(insertDate),
         params.hrbp || '',          // HRBP
         params.matricule || '',
         formatSheetDate(params.dateIntegration) || '',
@@ -102,6 +115,21 @@ function handleRequest(params) {
         ''
       ]);
 
+      sendNotificationEmail('depart', {
+        hrbp: params.hrbp || '',
+        matricule: params.matricule || '',
+        nom: params.nom || '',
+        fonction: params.fonction || '',
+        rattachement: params.rattachement || '',
+        dateDepart: departDate,
+        motif: params.motif || '',
+        raison: params.raison || '',
+        login: params.login || '',
+        mailConnecteo: params.mailConnecteo || '',
+        dateIntegration: formatSheetDate(params.dateIntegration) || '',
+        insertedAt: formatSheetDate(insertDate) || ''
+      });
+
       return jsonResponse({
         status: "success",
         message: "Départ enregistré avec succès"
@@ -113,9 +141,11 @@ function handleRequest(params) {
     // ============================
     if (type === "mouvement") {
       const sheet = ss.getSheetByName("Mouvement");
+      const insertDate = new Date();
+      const movementDate = formatSheetDate(params.dateMvt) || '';
 
       sheet.appendRow([
-        formatSheetDate(new Date()),
+        formatSheetDate(insertDate),
         params.hrbp || '',          // ✅ NOUVELLE COLONNE
         params.matricule || '',
         params.nom || '',
@@ -123,8 +153,21 @@ function handleRequest(params) {
         params.ancienPoste || '',
         params.nouveauPoste || '',
         params.typeMvt || '',
-        params.raisonMvt || ''
+        params.raisonMvt || '',
+        ''
       ]);
+
+      sendNotificationEmail('mouvement', {
+        hrbp: params.hrbp || '',
+        matricule: params.matricule || '',
+        nom: params.nom || '',
+        dateMvt: movementDate,
+        ancienPoste: params.ancienPoste || '',
+        nouveauPoste: params.nouveauPoste || '',
+        typeMvt: params.typeMvt || '',
+        raisonMvt: params.raisonMvt || '',
+        insertedAt: formatSheetDate(insertDate) || ''
+      });
 
       return jsonResponse({
         status: "success",
@@ -196,6 +239,59 @@ function parseSelectedRows(value) {
   return [];
 }
 
+function parseBooleanValue(value) {
+  if (value === true || value === 'true' || value === 'TRUE' || value === 1 || value === '1') return true;
+  if (value === false || value === 'false' || value === 'FALSE' || value === 0 || value === '0' || value === '' || value === null || typeof value === 'undefined') return false;
+  return Boolean(value);
+}
+
+function sendNotificationEmail(type, payload) {
+  try {
+    const subject = type === 'depart'
+      ? `Départ enregistré - ${payload.matricule || ''} ${payload.nom || ''}`.trim()
+      : `Mouvement enregistré - ${payload.matricule || ''} ${payload.nom || ''}`.trim();
+
+    const bodyLines = type === 'depart'
+      ? [
+          'Un départ vient d\'être enregistré.',
+          '',
+          `HRBP: ${payload.hrbp || ''}`,
+          `Matricule: ${payload.matricule || ''}`,
+          `Nom et prénoms: ${payload.nom || ''}`,
+          `Fonction: ${payload.fonction || ''}`,
+          `Rattachement: ${payload.rattachement || ''}`,
+          `Date d\'intégration: ${payload.dateIntegration || ''}`,
+          `Date de départ: ${payload.dateDepart || ''}`,
+          `Motif: ${payload.motif || ''}`,
+          `Raison: ${payload.raison || ''}`,
+          `Login: ${payload.login || ''}`,
+          `Mail Connecteo: ${payload.mailConnecteo || ''}`,
+          `Date d\'enregistrement: ${payload.insertedAt || ''}`
+        ]
+      : [
+          'Un mouvement vient d\'être enregistré.',
+          '',
+          `HRBP: ${payload.hrbp || ''}`,
+          `Matricule: ${payload.matricule || ''}`,
+          `Nom et prénoms: ${payload.nom || ''}`,
+          `Date de mouvement: ${payload.dateMvt || ''}`,
+          `Ancien poste: ${payload.ancienPoste || ''}`,
+          `Nouveau poste: ${payload.nouveauPoste || ''}`,
+          `Type de mouvement: ${payload.typeMvt || ''}`,
+          `Raison: ${payload.raisonMvt || ''}`,
+          `Date d\'enregistrement: ${payload.insertedAt || ''}`
+        ];
+
+    MailApp.sendEmail({
+      to: NOTIFICATION_EMAIL,
+      subject: subject,
+      body: bodyLines.join('\n')
+    });
+  } catch (err) {
+    Logger.log('Notification email failed: ' + err);
+  }
+}
+
 function getSheetRowsWithHeaders(sheetName) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName(sheetName);
@@ -240,7 +336,8 @@ function readDepartRowsForTicketing() {
       login: String(getValue(row, 'Login') || '').trim(),
       mailConnecteo: String(getValue(row, 'Mail connecteo') || getValue(row, 'Mail Connecteo') || '').trim(),
       ticket: ticketIndex >= 0 ? String(row[ticketIndex] || '').trim() : '',
-      dateCreation: dateCreationIndex >= 0 ? formatDate(row[dateCreationIndex]) || '' : ''
+      dateCreation: dateCreationIndex >= 0 ? formatDate(row[dateCreationIndex]) || '' : '',
+      checking: parseBooleanValue(getValue(row, 'Checking'))
     });
   }
 
@@ -253,6 +350,52 @@ function getTicketSidebarData() {
     return {
       status: 'success',
       departs: departs
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err.toString()
+    };
+  }
+}
+
+function updateCheckingState(payload) {
+  try {
+    const sheetName = String(payload && payload.sheetName ? payload.sheetName : '').trim();
+    const rowNumber = Number(payload && payload.rowNumber);
+    const checking = parseBooleanValue(payload && payload.checking);
+
+    if (!sheetName) {
+      return { status: 'error', message: 'La feuille est obligatoire.' };
+    }
+
+    if (!rowNumber || rowNumber < 2) {
+      return { status: 'error', message: 'La ligne est invalide.' };
+    }
+
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { status: 'error', message: `La feuille ${sheetName} est introuvable.` };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const headers = (data[0] || []).map(normalizeHeader);
+    const checkingIndex = getHeaderIndex(headers, 'Checking');
+    if (checkingIndex < 0) {
+      return { status: 'error', message: `La colonne Checking est introuvable dans la feuille ${sheetName}.` };
+    }
+
+    const currentChecking = parseBooleanValue((data[rowNumber - 1] || [])[checkingIndex]);
+    if (currentChecking && !checking) {
+      return { status: 'error', message: 'Cette ligne est déjà traitée et ne peut plus être décochée.' };
+    }
+
+    sheet.getRange(rowNumber, checkingIndex + 1).setValue(checking);
+
+    return {
+      status: 'success',
+      message: checking ? 'Ligne marquée comme traitée.' : 'Ligne marquée comme non traitée.'
     };
   } catch (err) {
     return {
@@ -297,6 +440,10 @@ function saveDepartTickets(payload) {
 
       sheet.getRange(numericRow, ticketIndex + 1).setValue(ticket);
       sheet.getRange(numericRow, dateCreationIndex + 1).setValue(today);
+      const checkingIndex = getHeaderIndex(headers, 'Checking');
+      if (checkingIndex >= 0) {
+        sheet.getRange(numericRow, checkingIndex + 1).setValue(true);
+      }
       updatedCount++;
     });
 
@@ -390,7 +537,8 @@ function getEntries() {
           login: String(getValue(data[i], 'Login') || ''),
           mailConnecteo: String(getValue(data[i], 'Mail connecteo') || getValue(data[i], 'Mail Connecteo') || ''),
           ticket: String(getValue(data[i], 'Ticket') || '').trim(),
-          dateCreation: formatDate(getValue(data[i], 'Date de création')) || ''
+          dateCreation: formatDate(getValue(data[i], 'Date de création')) || '',
+          checking: parseBooleanValue(getValue(data[i], 'Checking'))
         });
       }
     }
@@ -408,6 +556,7 @@ function getEntries() {
     for (let i = 1; i < data2.length; i++) {
       if (data2[i] && getValue2(data2[i], 'Matricule')) {
         result.mouvement.push({
+          rowNumber: i + 1,
           timestamp: formatDate(getValue2(data2[i], "Date d'insertion")) || new Date(),
           hrbp: getValue2(data2[i], 'hrbp') || '',
           matricule: String(getValue2(data2[i], 'Matricule') || ''),
@@ -421,7 +570,8 @@ function getEntries() {
           ancienPoste: getValue2(data2[i], "Ancien poste") || getValue2(data2[i], "Ancien Poste") || '',
           nouveauPoste: getValue2(data2[i], "Nouveau poste") || getValue2(data2[i], "Nouveau Poste") || '',
           typeMvt: getValue2(data2[i], "Type de mouvement") || getValue2(data2[i], "Type du mouvement") || getValue2(data2[i], "Type du MVT") || getValue2(data2[i], "Type MVT") || '',
-          raisonMvt: getValue2(data2[i], "Raison du mouvement") || getValue2(data2[i], "Raison de mouvement") || getValue2(data2[i], "Raison du MVT") || getValue2(data2[i], "Raison MVT") || ''
+          raisonMvt: getValue2(data2[i], "Raison du mouvement") || getValue2(data2[i], "Raison de mouvement") || getValue2(data2[i], "Raison du MVT") || getValue2(data2[i], "Raison MVT") || '',
+          checking: parseBooleanValue(getValue2(data2[i], 'Checking'))
         });
       }
     }

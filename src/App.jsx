@@ -94,6 +94,12 @@ function formatDate(value) {
   }
 }
 
+function parseBoolean(value) {
+  if (value === true || value === 'true' || value === 'TRUE' || value === 1 || value === '1') return true;
+  if (value === false || value === 'false' || value === 'FALSE' || value === 0 || value === '0' || value === '' || value == null) return false;
+  return Boolean(value);
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState('depart');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -109,7 +115,7 @@ function App() {
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sheetEntries, setSheetEntries] = useState({ depart: [], mouvement: [] });
-  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
   const [kpiFilters, setKpiFilters] = useState({
     matricule: '',
@@ -122,7 +128,8 @@ function App() {
     fonction: '',
     rattachement: '',
     dateFrom: '',
-    dateTo: ''
+    dateTo: '',
+    checking: ''
   });
   const [ticketStep, setTicketStep] = useState('selection');
   const [ticketSelectedRows, setTicketSelectedRows] = useState([]);
@@ -299,12 +306,19 @@ function App() {
 
       const normalizedDepartRows = (data.depart || []).map((record, index) => ({
         ...record,
+        checking: parseBoolean(record.checking),
+        rowNumber: record.rowNumber ?? index + 2
+      }));
+
+      const normalizedMouvementRows = (data.mouvement || []).map((record, index) => ({
+        ...record,
+        checking: parseBoolean(record.checking),
         rowNumber: record.rowNumber ?? index + 2
       }));
 
       setSheetEntries({
         depart: normalizedDepartRows,
-        mouvement: data.mouvement || []
+        mouvement: normalizedMouvementRows
       });
     } catch (error) {
       setHistoryError(error.message || 'Impossible de charger l\'historique');
@@ -312,6 +326,27 @@ function App() {
     } finally {
       setIsHistoryLoading(false);
     }
+  }
+
+  async function updateCheckingState(sheetName, rowNumber, checking) {
+    const params = new URLSearchParams();
+    params.append('type', 'updateChecking');
+    params.append('sheetName', sheetName);
+    params.append('rowNumber', String(rowNumber));
+    params.append('checking', checking ? 'true' : 'false');
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: params.toString()
+    });
+
+    const data = await response.json();
+    if (!response.ok || data.status !== 'success') {
+      throw new Error((data && data.message) || `HTTP ${response.status}`);
+    }
+
+    await loadHistory();
   }
 
   async function testBackend() {
@@ -482,8 +517,7 @@ function App() {
       return;
     }
 
-    setModalMode('depart');
-    setModalData(buildDepartData());
+    submitRecord('depart', buildDepartData());
   }
 
   function handleSubmitMouvement(event) {
@@ -495,19 +529,18 @@ function App() {
       return;
     }
 
-    setModalMode('mouvement');
-    setModalData(buildMouvementData());
+    submitRecord('mouvement', buildMouvementData());
   }
 
-  async function confirmModal() {
-    if (!modalMode || !modalData || isSubmitting) {
+  async function submitRecord(mode, recordData) {
+    if (!mode || !recordData || isSubmitting) {
       return;
     }
 
     setIsSubmitting(true);
     const params = new URLSearchParams();
-    params.append('type', modalMode);
-    Object.entries(modalData).forEach(([key, value]) => {
+    params.append('type', mode);
+    Object.entries(recordData).forEach(([key, value]) => {
       params.append(key, value == null ? '' : String(value));
     });
 
@@ -523,7 +556,7 @@ function App() {
         await loadHistory();
 
         const successMsg =
-          modalMode === 'depart'
+          mode === 'depart'
             ? '✅ Départ enregistré avec succès'
             : '✅ Mouvement enregistré avec succès';
         
@@ -534,11 +567,8 @@ function App() {
           setSuccessMessage('');
         }, 4000);
         
-        setModalMode(null);
-        setModalData(null);
-        
         // Réinitialiser les formulaires
-        if (modalMode === 'depart') {
+        if (mode === 'depart') {
           setDepartForm(initialDepartForm);
         } else {
           setMouvementForm(initialMouvementForm);
@@ -632,11 +662,6 @@ function App() {
     } finally {
       setIsTicketSubmitting(false);
     }
-  }
-
-  function closeModal() {
-    setModalMode(null);
-    setModalData(null);
   }
 
   function renderStatusCard() {
@@ -985,11 +1010,7 @@ function App() {
           </button>
         </div>
 
-        {isHistoryLoading ? (
-          <div className="kpi-dashboard-empty">
-            <p>Chargement de l'historique depuis la base…</p>
-          </div>
-        ) : historyError ? (
+        {historyError ? (
           <div className="kpi-dashboard-empty">
             <p>{historyError}</p>
           </div>
@@ -1179,7 +1200,8 @@ function App() {
       tableauFilters.fonction ||
       tableauFilters.rattachement ||
       tableauFilters.dateFrom ||
-      tableauFilters.dateTo
+      tableauFilters.dateTo ||
+      tableauFilters.checking
     );
 
     const matchesDateRange = (recordDateValue) => {
@@ -1205,12 +1227,21 @@ function App() {
     const filteredDepartRecords = sheetEntries.depart.filter(record => {
       const fonctionValue = String(record.fonction || '').toLowerCase();
       const rattachementValue = String(record.rattachement || '').toLowerCase();
+      const checkingValue = Boolean(record.checking);
 
       if (tableauFilters.fonction && !fonctionValue.includes(tableauFilters.fonction.toLowerCase())) {
         return false;
       }
 
       if (tableauFilters.rattachement && !rattachementValue.includes(tableauFilters.rattachement.toLowerCase())) {
+        return false;
+      }
+
+      if (tableauFilters.checking === 'checked' && !checkingValue) {
+        return false;
+      }
+
+      if (tableauFilters.checking === 'unchecked' && checkingValue) {
         return false;
       }
 
@@ -1220,12 +1251,21 @@ function App() {
     const filteredMouvementRecords = sheetEntries.mouvement.filter(record => {
       const fonctionValue = String(record.ancienPoste || '').toLowerCase();
       const rattachementValue = String(record.rattachement || '').toLowerCase();
+      const checkingValue = Boolean(record.checking);
 
       if (tableauFilters.fonction && !fonctionValue.includes(tableauFilters.fonction.toLowerCase())) {
         return false;
       }
 
       if (tableauFilters.rattachement && !rattachementValue.includes(tableauFilters.rattachement.toLowerCase())) {
+        return false;
+      }
+
+      if (tableauFilters.checking === 'checked' && !checkingValue) {
+        return false;
+      }
+
+      if (tableauFilters.checking === 'unchecked' && checkingValue) {
         return false;
       }
 
@@ -1300,10 +1340,22 @@ function App() {
                     onChange={e => setTableauFilters(prev => ({ ...prev, dateTo: e.target.value }))}
                   />
                 </div>
+                <div className="kpi-filter-field">
+                  <label htmlFor="tableau-checking">Checking :</label>
+                  <select
+                    id="tableau-checking"
+                    value={tableauFilters.checking}
+                    onChange={e => setTableauFilters(prev => ({ ...prev, checking: e.target.value }))}
+                  >
+                    <option value="">Tous</option>
+                    <option value="checked">Déjà traité</option>
+                    <option value="unchecked">Non traité</option>
+                  </select>
+                </div>
               </div>
               <button
                 className="kpi-filter-clear"
-                onClick={() => setTableauFilters({ fonction: '', rattachement: '', dateFrom: '', dateTo: '' })}
+                onClick={() => setTableauFilters({ fonction: '', rattachement: '', dateFrom: '', dateTo: '', checking: '' })}
               >
                 <i className="fas fa-times" /> Réinitialiser filtres
               </button>
@@ -1326,11 +1378,15 @@ function App() {
                         <th>Date départ</th>
                         <th>Motif</th>
                         <th>Raison</th>
+                        <th>Checking</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDepartRecords.map((record, idx) => (
-                        <tr key={record.id || `tableau-depart-${idx}`}>
+                        <tr
+                          key={record.id || `tableau-depart-${idx}`}
+                          style={record.checking ? { backgroundColor: '#f0fdf4' } : undefined}
+                        >
                           <td>{formatDate(record.timestamp)}</td>
                           <td>{record.matricule}</td>
                           <td>{record.nom}</td>
@@ -1339,6 +1395,17 @@ function App() {
                           <td>{formatDate(record.dateDepart)}</td>
                           <td>{record.motif}</td>
                           <td>{record.raison}</td>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(record.checking)}
+                              disabled={Boolean(record.checking)}
+                              title={record.checking ? 'Déjà traité, ligne figée' : 'Marquer comme traité'}
+                              onChange={e => updateCheckingState('Départ', record.rowNumber, e.target.checked).catch(error => {
+                                setHistoryError(error.message || 'Impossible de mettre à jour Checking');
+                              })}
+                            />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1364,11 +1431,15 @@ function App() {
                         <th>Nouveau poste</th>
                         <th>Type</th>
                         <th>Raison</th>
+                        <th>Checking</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredMouvementRecords.map((record, idx) => (
-                        <tr key={record.id || `tableau-mvt-${idx}`}>
+                        <tr
+                          key={record.id || `tableau-mvt-${idx}`}
+                          style={record.checking ? { backgroundColor: '#f0fdf4' } : undefined}
+                        >
                           <td>{formatDate(record.timestamp)}</td>
                           <td>{record.matricule}</td>
                           <td>{record.nom}</td>
@@ -1377,6 +1448,17 @@ function App() {
                           <td>{record.nouveauPoste}</td>
                           <td>{record.typeMvt}</td>
                           <td>{record.raisonMvt}</td>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(record.checking)}
+                              disabled={Boolean(record.checking)}
+                              title={record.checking ? 'Déjà traité, ligne figée' : 'Marquer comme traité'}
+                              onChange={e => updateCheckingState('Mouvement', record.rowNumber, e.target.checked).catch(error => {
+                                setHistoryError(error.message || 'Impossible de mettre à jour Checking');
+                              })}
+                            />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1760,79 +1842,6 @@ function App() {
           )}
         </div>
       </div>
-
-      {modalMode && modalData && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={event => event.stopPropagation()}>
-            <div className="recap-section">
-              <div className="recap-row">
-                <span className="recap-label"><i className="fas fa-user-tie" /> HRBP :</span>
-                <span className="recap-value">{modalData.hrbp}</span>
-              </div>
-              <div className="recap-row">
-                <span className="recap-label"><i className="fas fa-id-card" /> Matricule :</span>
-                <span className="recap-value">{modalData.matricule}</span>
-              </div>
-              <div className="recap-row">
-                <span className="recap-label"><i className="fas fa-user" /> Nom et Prénoms :</span>
-                <span className="recap-value">{modalData.nom}</span>
-              </div>
-              {modalMode === 'depart' ? (
-                <>
-                  <div className="recap-row">
-                    <span className="recap-label"><i className="fas fa-briefcase" /> Fonction :</span>
-                    <span className="recap-value">{modalData.fonction}</span>
-                  </div>
-                  <div className="recap-row">
-                    <span className="recap-label"><i className="fas fa-calendar-days" /> Date de Départ :</span>
-                    <span className="recap-value">{modalData.dateDepart}</span>
-                  </div>
-                  <div className="recap-row">
-                    <span className="recap-label"><i className="fas fa-tag" /> Motif :</span>
-                    <span className="recap-value">{modalData.motif}</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="recap-row">
-                    <span className="recap-label"><i className="fas fa-calendar-days" /> Date du Mouvement :</span>
-                    <span className="recap-value">{modalData.dateMvt}</span>
-                  </div>
-                  <div className="recap-row">
-                    <span className="recap-label"><i className="fas fa-briefcase" /> Ancien Poste :</span>
-                    <span className="recap-value">{modalData.ancienPoste}</span>
-                  </div>
-                  <div className="recap-row">
-                    <span className="recap-label"><i className="fas fa-shuffle" /> Type de Mouvement :</span>
-                    <span className="recap-value">{modalData.typeMvt}</span>
-                  </div>
-                  <div className="recap-row">
-                    <span className="recap-label"><i className="fas fa-suitcase" /> Destination :</span>
-                    <span className="recap-value">{modalData.nouveauPoste}</span>
-                  </div>
-                  <div className="recap-row">
-                    <span className="recap-label"><i className="fas fa-wand-magic-sparkles" /> Nouvelle Fonction :</span>
-                    <span className="recap-value">{modalData.isFonctionNouvelle ? 'Oui' : 'Non'}</span>
-                  </div>
-                </>
-              )}
-              <div className="recap-row">
-                <span className="recap-label"><i className="fas fa-pen" /> Raison :</span>
-                <span className="recap-value">{modalData.raison || modalData.raisonMvt}</span>
-              </div>
-            </div>
-            <div className="recap-message"><i className="fas fa-circle-check" /> Les données seront enregistrées dans la base de données</div>
-            <div className="modal-buttons">
-              <button className="btn-confirm" type="button" onClick={confirmModal} disabled={isSubmitting}>
-                <i className="fas fa-check" /> Confirmer
-              </button>
-              <button className="btn-cancel" type="button" onClick={closeModal}>
-                <i className="fas fa-xmark" /> Annuler
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {successMessage && <div className="success-message">{successMessage}</div>}
     </div>
