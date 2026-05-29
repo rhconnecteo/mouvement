@@ -2,7 +2,50 @@ const SHEET_ID = "1Jh_ZS3lYL-wt_UHU51Ium7FkPSOLrEURdf-AkIqy5Cc";
 const NOTIFICATION_EMAIL = "rhbiconnecteo@gmail.com";
 
 function doPost(e) {
-  return handleRequest(e.parameter);
+  return handleRequest(extractRequestParams(e));
+}
+
+function extractRequestParams(e) {
+  const params = {};
+
+  if (e && e.parameter) {
+    Object.keys(e.parameter).forEach(key => {
+      params[key] = e.parameter[key];
+    });
+  }
+
+  const contents = e && e.postData && typeof e.postData.contents === 'string' ? e.postData.contents.trim() : '';
+  if (!contents) {
+    return params;
+  }
+
+  const contentType = String(e.postData.type || '').toLowerCase();
+
+  if (contentType.indexOf('application/json') >= 0) {
+    try {
+      const jsonParams = JSON.parse(contents);
+      if (jsonParams && typeof jsonParams === 'object') {
+        Object.keys(jsonParams).forEach(key => {
+          params[key] = jsonParams[key];
+        });
+      }
+    } catch (err) {
+      Logger.log('Impossible de parser le JSON entrant: ' + err);
+    }
+    return params;
+  }
+
+  contents.split('&').forEach(part => {
+    if (!part) return;
+    const separatorIndex = part.indexOf('=');
+    const rawKey = separatorIndex >= 0 ? part.slice(0, separatorIndex) : part;
+    const rawValue = separatorIndex >= 0 ? part.slice(separatorIndex + 1) : '';
+    const key = decodeURIComponent(String(rawKey).replace(/\+/g, ' '));
+    const value = decodeURIComponent(String(rawValue).replace(/\+/g, ' '));
+    params[key] = value;
+  });
+
+  return params;
 }
 
 function handleRequest(params) {
