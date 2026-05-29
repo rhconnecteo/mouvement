@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const API_URL = '/apps-script';
+const API_URL = import.meta.env.DEV
+  ? '/apps-script'
+  : (import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxdrleTZj9mFufcRCAwfJxzAyRRktE2lSbXmyQW6-vW754BnyQBNWRL5xApFO96QOYO/exec');
 const HRBPS = ['Malala', 'Ravo', 'Koloina', 'Lanto', 'Carine', 'Chrissie', 'Mamonjisoa'];
 const MOTIFS_DEPART = [
   'Congé de maternité',
