@@ -1,5 +1,8 @@
 const SHEET_ID = "1Jh_ZS3lYL-wt_UHU51Ium7FkPSOLrEURdf-AkIqy5Cc";
 const NOTIFICATION_EMAIL = "rhbiconnecteo@gmail.com";
+const DAILY_SUMMARY_EMAIL = "herizo.ramboamiarison@connecteo.mg";
+const DAILY_SUMMARY_CC = "Liantsoa@connecteo.mg,Tyfannie@connecteo.mg,Zélie@connecteo.mg";
+const DAILY_SUMMARY_RECIPIENTS = [NOTIFICATION_EMAIL, DAILY_SUMMARY_EMAIL];
 
 function doPost(e) {
   return handleRequest(extractRequestParams(e));
@@ -130,6 +133,10 @@ function handleRequest(params) {
         status: 'success',
         received: params
       });
+    }
+
+    if (type === "sendTodayDepartSummary") {
+      return jsonResponse(sendTodayDepartSummaryEmail());
     }
 
     // ============================
@@ -333,6 +340,203 @@ function sendNotificationEmail(type, payload) {
   } catch (err) {
     Logger.log('Notification email failed: ' + err);
   }
+}
+
+function sendTodayDepartSummaryEmail() {
+  try {
+    const { departs } = getTodayDepartRows();
+    Logger.log('sendTodayDepartSummaryEmail: ' + departs.length + ' ligne(s) trouvée(s).');
+
+    if (!departs.length) {
+      Logger.log('sendTodayDepartSummaryEmail: aucun enregistrement du jour, envoi annulé.');
+      return {
+        status: 'success',
+        message: 'Aucune ligne du jour à envoyer.',
+        sent: false,
+        rowCount: 0
+      };
+    }
+
+    const todayLabel = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+    const subject = `Départs du jour - ${todayLabel} (${departs.length})`;
+    const htmlBody = buildTodayDepartSummaryHtml(departs, todayLabel);
+    const plainBody = buildTodayDepartSummaryPlainText(departs, todayLabel);
+
+    Logger.log("sendTodayDepartSummaryEmail: tentative d'envoi vers " + DAILY_SUMMARY_RECIPIENTS.join(', '));
+
+    try {
+      MailApp.sendEmail({
+        to: DAILY_SUMMARY_RECIPIENTS.join(','),
+        cc: DAILY_SUMMARY_CC,
+        subject: subject,
+        body: plainBody,
+        htmlBody: htmlBody
+      });
+      Logger.log('sendTodayDepartSummaryEmail: envoi MailApp réussi.');
+    } catch (mailErr) {
+      Logger.log('sendTodayDepartSummaryEmail: MailApp a échoué, fallback GmailApp: ' + mailErr);
+      GmailApp.sendEmail(DAILY_SUMMARY_EMAIL, subject, plainBody, {
+        htmlBody: htmlBody
+      });
+      Logger.log('sendTodayDepartSummaryEmail: envoi GmailApp réussi vers ' + DAILY_SUMMARY_EMAIL);
+    }
+
+    return {
+      status: 'success',
+      message: `Mail envoyé avec ${departs.length} ligne(s).`,
+      sent: true,
+      rowCount: departs.length
+    };
+  } catch (err) {
+    Logger.log('sendTodayDepartSummaryEmail: erreur fatale: ' + err);
+    return {
+      status: 'error',
+      message: err.toString(),
+      sent: false
+    };
+  }
+}
+
+function sendTodayDepartSummary() {
+  return sendTodayDepartSummaryEmail();
+}
+
+function getTodayDepartRows() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName('Départ');
+  if (!sheet) {
+    return { departs: [], todayKey: formatSheetDate(new Date()) };
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const displayData = sheet.getDataRange().getDisplayValues();
+  const headers = (data[0] || []).map(normalizeHeader);
+  const todayKey = formatSheetDate(new Date());
+  const todayDisplayKey = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+
+  const getValue = (row, headerName) => {
+    const index = getHeaderIndex(headers, headerName);
+    return index >= 0 ? row[index] : '';
+  };
+
+  const getDisplayValue = (row, headerName) => {
+    const index = getHeaderIndex(headers, headerName);
+    return index >= 0 ? String(row[index] || '').trim() : '';
+  };
+
+  const departs = [];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const displayRow = displayData[i] || [];
+    if (!row || !getValue(row, 'Matricule')) continue;
+
+    const insertedDateValue = getValue(row, "Date d'insertion");
+    const insertedDateKey = formatSheetDate(insertedDateValue);
+    const insertedDateDisplay = getDisplayValue(displayRow, "Date d'insertion");
+
+    if (insertedDateKey !== todayKey && insertedDateDisplay !== todayDisplayKey) continue;
+
+    departs.push({
+      matricule: String(getValue(row, 'Matricule') || '').trim(),
+      statut: String(getValue(row, 'Statut') || '').trim(),
+      nom: String(getValue(row, 'Nom et Prénoms') || '').trim(),
+      fonction: String(getValue(row, 'Fonction') || '').trim(),
+      dateDepart: formatDate(getValue(row, 'Date de départ')) || ''
+    });
+  }
+
+  return { departs, todayKey };
+}
+
+function buildTodayDepartSummaryPlainText(departs, todayLabel) {
+  const lines = [
+    `Départs du jour - ${todayLabel}`,
+    '',
+    'Matricule | Statut | Nom et Prénom | Fonction | Date de départ'
+  ];
+
+  departs.forEach(item => {
+    lines.push([
+      item.matricule,
+      item.statut,
+      item.nom,
+      item.fonction,
+      item.dateDepart
+    ].join(' | '));
+  });
+
+  return lines.join('\n');
+}
+
+function buildTodayDepartSummaryHtml(departs, todayLabel) {
+  const rowsHtml = departs.map((item, index) => {
+    const rowBackground = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+    return `
+      <tr style="background:${rowBackground};">
+        ${buildSummaryBodyCell(item.matricule, 'width:12%;')}
+        ${buildSummaryBodyCell(item.statut, 'width:10%;')}
+        ${buildSummaryBodyCell(item.nom, 'width:27%;')}
+        ${buildSummaryBodyCell(item.fonction, 'width:23%;')}
+        ${buildSummaryBodyCell(item.motif, 'width:18%;')}
+        ${buildSummaryBodyCell(item.dateDepart, 'width:10%;white-space:nowrap;')}
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0;padding:0;background:#eef4ff;font-family:Arial,Helvetica,sans-serif;color:#0f172a;border-collapse:collapse;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="980" cellspacing="0" cellpadding="0" border="0" style="width:980px;max-width:980px;border-collapse:separate;border-spacing:0;background:#ffffff;border:1px solid #dbe3f0;">
+            <tr>
+              <td style="background:#10254f;padding:24px 30px;color:#ffffff;">
+                <div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;line-height:1.2;">Connecteo</div>
+                <div style="font-size:28px;line-height:1.2;font-weight:800;margin-top:10px;">Départs du jour</div>
+                <div style="font-size:15px;line-height:1.4;margin-top:8px;">Date d'insertion: ${escapeHtml(todayLabel)} - ${departs.length} enregistrement(s)</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:22px 22px 10px 22px;background:#ffffff;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #dbe3f0;table-layout:auto;">
+                  <thead>
+                    <tr>
+                      ${buildSummaryHeaderCell('Matricule')}
+                      ${buildSummaryHeaderCell('Statut')}
+                      ${buildSummaryHeaderCell('Nom et Prénom')}
+                      ${buildSummaryHeaderCell('Fonction')}
+                      ${buildSummaryHeaderCell('Motif')}
+                      ${buildSummaryHeaderCell('Date de départ')}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+                <div style="margin-top:14px;font-size:12px;line-height:1.5;color:#64748b;">Ce message regroupe uniquement les lignes dont la Date d'insertion correspond à aujourd'hui.</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+function buildSummaryHeaderCell(label) {
+  return `<th align="left" style="text-align:left;padding:14px 16px;background:#0f172a;color:#fff;font-size:13px;font-weight:700;letter-spacing:.02em;border-right:1px solid #22304a;border-bottom:1px solid #0b1220;white-space:normal;word-break:break-word;line-height:1.25;vertical-align:top;">${escapeHtml(label)}</th>`;
+}
+
+function buildSummaryBodyCell(value, extraStyle) {
+  return `<td style="padding:14px 16px;font-size:13px;line-height:1.45;color:#0f172a;border-top:1px solid #e5e7eb;vertical-align:top;word-break:break-word;white-space:normal;overflow-wrap:anywhere;${extraStyle || ''}">${escapeHtml(value)}</td>`;
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function getSheetRowsWithHeaders(sheetName) {
