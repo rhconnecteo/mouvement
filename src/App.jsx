@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 const API_URL = import.meta.env.DEV
   ? '/apps-script'
-  : (import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwwKFVC_l4kKE8uZ9MU1CpUhCVICxoUZRyXX6OPmPE_2XI3TTzzPKByUmxp8Etsdt8Y/exec');
+  : (import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzqqXySjIRvwF0BZvKtZ5VlxLFfeRXfn3RsIKYlPPpCrK3yW6GPdBf1w6vkzHk5wY5_/exec');
 const HRBPS = ['Malala', 'Ravo', 'Koloina', 'Lanto', 'Carine', 'Chrissie', 'Mamonjisoa'];
 const MOTIFS_DEPART = [
   'Congé de maternité',
@@ -102,6 +102,15 @@ function parseBoolean(value) {
   return Boolean(value);
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState('depart');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -136,6 +145,7 @@ function App() {
   const [ticketStep, setTicketStep] = useState('selection');
   const [ticketSelectedRows, setTicketSelectedRows] = useState([]);
   const [ticketName, setTicketName] = useState('');
+  const [ticketSage, setTicketSage] = useState(false);
   const [ticketMessage, setTicketMessage] = useState('');
   const [isTicketSubmitting, setIsTicketSubmitting] = useState(false);
 
@@ -193,6 +203,161 @@ function App() {
     const selected = new Set(ticketSelectedRows.map(Number));
     return ticketRows.filter(record => selected.has(Number(record.rowNumber)));
   }, [ticketRows, ticketSelectedRows]);
+
+  const ticketRecapSrcDoc = useMemo(() => {
+    const rowsHtml = ticketSelectedRecords.map((record, index) => {
+      const background = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+      return `
+        <tr style="background:${background};">
+          <td>${escapeHtml(formatDate(record.timestamp))}</td>
+          <td>${escapeHtml(record.hrbp)}</td>
+          <td>${escapeHtml(record.matricule)}</td>
+          <td>${escapeHtml(record.nom)}</td>
+          <td>${escapeHtml(record.fonction)}</td>
+          <td>${escapeHtml(record.rattachement)}</td>
+          <td>${escapeHtml(formatDate(record.dateDepart))}</td>
+          <td>${escapeHtml(record.motif)}</td>
+          <td>${escapeHtml(record.raison)}</td>
+          <td>${escapeHtml(record.login)}</td>
+          <td>${escapeHtml(record.mailConnecteo)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const sageLabel = ticketSage ? 'Oui' : 'Non';
+
+    return `
+      <!DOCTYPE html>
+      <html lang="fr">
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body {
+              margin: 0;
+              font-family: Arial, Helvetica, sans-serif;
+              color: #0f172a;
+              background: #f8fbff;
+            }
+            .wrap {
+              padding: 16px;
+            }
+            .banner {
+              background: #10254f;
+              color: #fff;
+              border-radius: 12px;
+              padding: 16px 18px;
+              margin-bottom: 14px;
+            }
+            .banner h3 {
+              margin: 0 0 6px;
+              font-size: 18px;
+            }
+            .banner p {
+              margin: 0;
+              font-size: 13px;
+              line-height: 1.5;
+              opacity: 0.95;
+            }
+            .meta {
+              display: flex;
+              gap: 10px;
+              flex-wrap: wrap;
+              margin-bottom: 14px;
+            }
+            .meta-item {
+              background: #ffffff;
+              border: 1px solid #dbe3f0;
+              border-radius: 10px;
+              padding: 10px 12px;
+              font-size: 12px;
+              line-height: 1.4;
+            }
+            .meta-item strong {
+              display: block;
+              margin-bottom: 4px;
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+              color: #64748b;
+            }
+            .table-wrap {
+              border: 1px solid #dbe3f0;
+              border-radius: 12px;
+              overflow: hidden;
+              background: #fff;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 12px;
+            }
+            thead th {
+              position: sticky;
+              top: 0;
+              background: #0f172a;
+              color: #fff;
+              text-align: left;
+              padding: 10px 12px;
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+            }
+            tbody td {
+              border-top: 1px solid #e5e7eb;
+              padding: 10px 12px;
+              vertical-align: top;
+              word-break: break-word;
+            }
+            .note {
+              margin-top: 12px;
+              padding: 12px 14px;
+              border-radius: 10px;
+              background: #eef4ff;
+              border: 1px solid #dbe3f0;
+              font-size: 13px;
+              line-height: 1.55;
+              color: #1e293b;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <div class="banner">
+              <h3>Récapitulatif des collaborateurs sélectionnés</h3>
+              <p>${ticketSelectedRecords.length} collaborateur(s) à traiter. Le ticket sera créé avec le nom saisi et la suppression Sage sera enregistrée si cochée.</p>
+            </div>
+            <div class="meta">
+              <div class="meta-item"><strong>Ticket</strong>${escapeHtml(ticketName || 'Non renseigné')}</div>
+              <div class="meta-item"><strong>Date de création</strong>${escapeHtml(formatDate(new Date()))}</div>
+              <div class="meta-item"><strong>Supprimer dans Sage</strong>${sageLabel}</div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date insertion</th>
+                    <th>HRBP</th>
+                    <th>Matricule</th>
+                    <th>Nom</th>
+                    <th>Fonction</th>
+                    <th>Rattachement</th>
+                    <th>Date départ</th>
+                    <th>Motif</th>
+                    <th>Raison</th>
+                    <th>Login</th>
+                    <th>Mail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml || '<tr><td colspan="11">Aucun collaborateur sélectionné.</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  }, [ticketName, ticketSelectedRecords, ticketSage]);
 
   // Calculer les KPIs
   const kpiStats = useMemo(() => {
@@ -376,6 +541,7 @@ function App() {
     setTicketStep('selection');
     setTicketSelectedRows([]);
     setTicketName('');
+    setTicketSage(false);
     setTicketMessage('');
     setIsTicketSubmitting(false);
   }
@@ -619,9 +785,44 @@ function App() {
     setTicketStep('details');
   }
 
-  async function saveTicketBatch() {
+  function openTicketRecapModal() {
     if (!ticketName.trim()) {
-      setTicketMessage('Le nom du ticket est obligatoire.');
+      setTicketMessage('La référence du ticket est obligatoire.');
+      return;
+    }
+
+    if (!ticketSage) {
+      setTicketMessage('La case Sage est obligatoire.');
+      return;
+    }
+
+    if (ticketSelectedRows.length === 0) {
+      setTicketMessage('Aucun départ sélectionné.');
+      setTicketStep('selection');
+      return;
+    }
+
+    setTicketMessage('');
+    setModalData({
+      title: 'Récapitulatif des collaborateurs sélectionnés',
+      srcDoc: ticketRecapSrcDoc
+    });
+    setModalMode('ticketRecap');
+  }
+
+  function closeTicketRecapModal() {
+    setModalMode(null);
+    setModalData(null);
+  }
+
+  async function submitTicketBatch() {
+    if (!ticketName.trim()) {
+      setTicketMessage('La référence du ticket est obligatoire.');
+      return;
+    }
+
+    if (!ticketSage) {
+      setTicketMessage('La case Sage est obligatoire.');
       return;
     }
 
@@ -638,6 +839,7 @@ function App() {
     params.append('type', 'saveTickets');
     params.append('ticket', ticketName.trim());
     params.append('selectedRows', JSON.stringify(ticketSelectedRows));
+    params.append('sage', ticketSage ? 'true' : 'false');
 
     try {
       const response = await fetch(API_URL, {
@@ -663,6 +865,7 @@ function App() {
       setTicketMessage(error.message || 'Impossible d’enregistrer le ticket.');
     } finally {
       setIsTicketSubmitting(false);
+      closeTicketRecapModal();
     }
   }
 
@@ -712,9 +915,6 @@ function App() {
           <button className="kpi-dashboard-refresh" onClick={loadHistory} title="Rafraîchir l'historique">
             <i className="fas fa-rotate" />
           </button>
-          <button className="kpi-dashboard-refresh" onClick={testBackend} title="Tester le backend" style={{marginLeft:8}}>
-            <i className="fas fa-bug" />
-          </button>
         </div>
 
         {isHistoryLoading ? (
@@ -752,7 +952,7 @@ function App() {
               <button type="button" className="kpi-filter-clear" onClick={clearTicketSelection}>Tout décocher</button>
               <button type="button" className="kpi-filter-clear" onClick={() => loadHistory()}>Rafraîchir</button>
               <button type="button" className="nav-btn active" style={{ marginLeft: 'auto' }} onClick={goToTicketDetails}>
-                Suivant
+                Valider
               </button>
             </div>
 
@@ -842,43 +1042,115 @@ function App() {
           </div>
         ) : (
           <div className="kpi-dashboard-section">
-            <div className="kpi-dashboard-item" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
-              <span className="kpi-dashboard-function">Ticket sélectionné</span>
-              <span className="kpi-count mouvement-count">{ticketSelectedRecords.length} collaborateur(s)</span>
+            <div
+              className="kpi-dashboard-item"
+              style={{
+                marginBottom: 14,
+                justifyContent: 'space-between',
+                padding: '14px 16px',
+                borderRadius: 18,
+                background: 'linear-gradient(135deg, rgba(91,110,225,0.10), rgba(116,85,196,0.06))',
+                border: '1px solid rgba(91,110,225,0.16)'
+              }}
+            >
+              <span className="kpi-dashboard-function" style={{ fontSize: 13, fontWeight: 800 }}>Récapitulatif du ticket</span>
+              <span className="kpi-count mouvement-count" style={{ background: '#fff', borderRadius: 999, padding: '6px 12px' }}>
+                {ticketSelectedRecords.length} collaborateur(s)
+              </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
-              <div className="stat-card depart">
-                <div className="stat-label">Date de création</div>
-                <div className="stat-value">{todayLabel}</div>
-              </div>
-              <div className="stat-card mouvement">
-                <div className="stat-label">Écran</div>
-                <div className="stat-value">2 / 2</div>
-              </div>
-            </div>
-
-            <div className="kpi-filter-grid">
-              <div className="kpi-filter-field">
-                <label htmlFor="ticket-name">Nom du ticket :</label>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.45fr) minmax(220px, 0.9fr) minmax(260px, 1fr)',
+                gap: 12,
+                marginBottom: 14,
+                alignItems: 'stretch'
+              }}
+            >
+              <div
+                className="stat-card depart"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: 18,
+                  borderRadius: 18,
+                  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.04)'
+                }}
+              >
+                <label htmlFor="ticket-name" style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Référence du ticket</label>
                 <input
                   id="ticket-name"
                   type="text"
-                  placeholder="Ex. Ticket départ mai 2026"
+                  placeholder="Entrer la référence du ticket..."
                   value={ticketName}
                   onChange={event => setTicketName(event.target.value)}
+                  style={{
+                    width: '100%',
+                    border: '1px solid #dbe3f0',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    fontSize: 16,
+                    fontWeight: 600,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#fff'
+                  }}
                 />
               </div>
-              <div className="kpi-filter-field">
-                <label htmlFor="ticket-date">Date de création :</label>
-                <input id="ticket-date" type="text" value={todayLabel} readOnly />
+
+              <div
+                className="stat-card mouvement"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: 18,
+                  borderRadius: 18,
+                  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.04)'
+                }}
+              >
+                <div style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Date de création</div>
+                <div className="stat-value" style={{ marginTop: 0, fontSize: 18 }}>{todayLabel}</div>
+              </div>
+
+              <div
+                className="stat-card"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: 18,
+                  border: '1px solid #dbe3f0',
+                  background: ticketSage ? 'linear-gradient(135deg, #eefbf4, #ffffff)' : '#fff',
+                  borderRadius: 18,
+                  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.04)'
+                }}
+              >
+                <div style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sage</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 78 }}>
+                  <input
+                    type="checkbox"
+                    checked={ticketSage}
+                    onChange={event => setTicketSage(event.target.checked)}
+                    style={{ width: 32, height: 32, accentColor: '#5b6ee1', cursor: 'pointer' }}
+                    aria-label="Supprimer dans Sage"
+                  />
+                </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, marginBottom: 12 }}>
               <button type="button" className="kpi-filter-clear" onClick={() => setTicketStep('selection')}>Retour</button>
               <button type="button" className="kpi-filter-clear" onClick={() => setTicketName('')}>Vider</button>
-              <button type="button" className="nav-btn active" style={{ marginLeft: 'auto' }} onClick={saveTicketBatch} disabled={isTicketSubmitting}>
+              <button type="button" className="nav-btn active" style={{ marginLeft: 'auto' }} onClick={openTicketRecapModal} disabled={isTicketSubmitting}>
                 {isTicketSubmitting ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </div>
@@ -1844,6 +2116,30 @@ function App() {
           )}
         </div>
       </div>
+
+      {modalMode === 'ticketRecap' && modalData ? (
+        <div className="modal-overlay" onClick={closeTicketRecapModal}>
+          <div className="modal-content" onClick={event => event.stopPropagation()} style={{ width: 'min(100%, 1280px)', maxWidth: '1280px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>{modalData.title}</h3>
+            <iframe
+              title="Récapitulatif des collaborateurs sélectionnés"
+              srcDoc={modalData.srcDoc}
+              style={{ width: '100%', height: '72vh', minHeight: 680, border: '1px solid #dbe3f0', borderRadius: 16, background: '#fff' }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16, flexWrap: 'wrap' }}>
+              <button type="button" className="kpi-filter-clear" onClick={closeTicketRecapModal}>Annuler</button>
+              <button
+                type="button"
+                className="nav-btn active"
+                onClick={submitTicketBatch}
+                disabled={isTicketSubmitting}
+              >
+                {isTicketSubmitting ? 'Enregistrement…' : 'Confirmer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {successMessage && <div className="success-message">{successMessage}</div>}
     </div>

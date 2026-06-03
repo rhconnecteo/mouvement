@@ -143,6 +143,15 @@
         background: white;
       }
 
+      .recap-frame {
+        width: 100%;
+        height: 340px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        margin: 12px 0;
+      }
+
       table {
         border-collapse: collapse;
         width: 100%;
@@ -298,6 +307,8 @@
           <button type="button" class="btn-secondary" id="reloadAfterBackBtn">Rafraîchir la liste</button>
         </div>
 
+        <iframe id="recapFrame" class="recap-frame" title="Récapitulatif des collaborateurs sélectionnés"></iframe>
+
         <div class="field-grid">
           <div>
             <label for="ticketInput">Nom du ticket</label>
@@ -313,6 +324,14 @@
           </div>
         </div>
 
+        <div style="margin-top: 12px;">
+          <label style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 0;">
+            <input type="checkbox" id="sageCheckbox">
+            Supprimer dans Sage
+          </label>
+          <div class="muted-inline" style="margin-top: 6px;">Si cette option est cochée, la colonne Sage sera enregistrée à TRUE.</div>
+        </div>
+
         <div class="toolbar" style="margin-top: 12px;">
           <button type="button" class="btn-primary" id="saveBtn">Enregistrer</button>
         </div>
@@ -325,7 +344,8 @@
       const state = {
         rows: [],
         selectedRows: new Set(),
-        step: 'selection'
+        step: 'selection',
+        sage: false
       };
 
       function escapeHtml(value) {
@@ -355,6 +375,9 @@
         state.step = step;
         document.getElementById('stepSelection').classList.toggle('active', step === 'selection');
         document.getElementById('stepTicket').classList.toggle('active', step === 'ticket');
+        if (step === 'ticket') {
+          refreshRecapFrame();
+        }
       }
 
       function updateCounts() {
@@ -368,6 +391,7 @@
         if (!state.rows.length) {
           wrap.innerHTML = '<div class="empty-state">Aucun départ sans ticket à traiter.</div>';
           updateCounts();
+          refreshRecapFrame();
           return;
         }
 
@@ -432,10 +456,66 @@
             }
             updateCounts();
             renderTable();
+            refreshRecapFrame();
           });
         });
 
         updateCounts();
+        refreshRecapFrame();
+      }
+
+      function buildRecapFrameSrcDoc() {
+        const selectedRows = state.rows.filter(row => state.selectedRows.has(row.rowNumber));
+        const rowsHtml = selectedRows.map((row, index) => {
+          const background = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+          return '<tr style="background:' + background + ';">'
+            + '<td>' + escapeHtml(row.timestamp) + '</td>'
+            + '<td>' + escapeHtml(row.hrbp) + '</td>'
+            + '<td>' + escapeHtml(row.matricule) + '</td>'
+            + '<td>' + escapeHtml(row.nom) + '</td>'
+            + '<td>' + escapeHtml(row.fonction) + '</td>'
+            + '<td>' + escapeHtml(row.rattachement) + '</td>'
+            + '<td>' + escapeHtml(row.dateDepart) + '</td>'
+            + '<td>' + escapeHtml(row.motif) + '</td>'
+            + '<td>' + escapeHtml(row.raison) + '</td>'
+            + '</tr>';
+        }).join('');
+
+        const ticketValue = escapeHtml(document.getElementById('ticketInput').value.trim());
+        const sageChecked = document.getElementById('sageCheckbox').checked;
+
+        return '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><style>'
+          + 'body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f8fbff;color:#0f172a;}'
+          + '.wrap{padding:14px;}'
+          + '.banner{background:#10254f;color:#fff;padding:14px 16px;border-radius:12px;margin-bottom:12px;}'
+          + '.banner h3{margin:0 0 6px;font-size:18px;}'
+          + '.banner p{margin:0;font-size:13px;line-height:1.5;}'
+          + '.meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}'
+          + '.meta-item{background:#fff;border:1px solid #d9e1ec;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.4;}'
+          + '.meta-item strong{display:block;margin-bottom:4px;font-size:11px;text-transform:uppercase;color:#64748b;}'
+          + '.table-wrap{border:1px solid #d9e1ec;border-radius:12px;overflow:hidden;background:#fff;}'
+          + 'table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px;}'
+          + 'th{background:#0f172a;color:#fff;text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;}'
+          + 'td{border-top:1px solid #e5e7eb;padding:10px 12px;vertical-align:top;word-break:break-word;}'
+          + '.note{margin-top:12px;padding:12px 14px;border-radius:10px;background:#eef4ff;border:1px solid #dbe3f0;font-size:13px;line-height:1.5;}'
+          + '</style></head><body><div class="wrap">'
+          + '<div class="banner"><h3>Récapitulatif des collaborateurs sélectionnés</h3><p>' + selectedRows.length + ' collaborateur(s) à traiter.</p></div>'
+          + '<div class="meta">'
+          + '<div class="meta-item"><strong>Ticket</strong>' + (ticketValue || 'Non renseigné') + '</div>'
+          + '<div class="meta-item"><strong>Date de création</strong>' + escapeHtml(formatDisplayDate()) + '</div>'
+          + '<div class="meta-item"><strong>Supprimer dans Sage</strong>' + (sageChecked ? 'Oui' : 'Non') + '</div>'
+          + '</div>'
+          + '<div class="table-wrap"><table><thead><tr><th>Date insertion</th><th>HRBP</th><th>Matricule</th><th>Nom</th><th>Fonction</th><th>Rattachement</th><th>Date départ</th><th>Motif</th><th>Raison</th></tr></thead><tbody>'
+          + (rowsHtml || '<tr><td colspan="9">Aucun collaborateur sélectionné.</td></tr>')
+          + '</tbody></table></div>'
+          + '<div class="note">Saisissez la référence du ticket, vérifiez le récapitulatif, puis validez l’enregistrement.</div>'
+          + '</div></body></html>';
+      }
+
+      function refreshRecapFrame() {
+        const frame = document.getElementById('recapFrame');
+        if (!frame) return;
+        frame.srcdoc = buildRecapFrameSrcDoc();
       }
 
       function loadDepartRows() {
@@ -469,12 +549,16 @@
 
         document.getElementById('ticketInput').value = '';
         document.getElementById('creationDate').value = formatDisplayDate();
+        document.getElementById('sageCheckbox').checked = false;
+        state.sage = false;
         setStatus('saveStatus', '', '');
         setStep('ticket');
+        refreshRecapFrame();
       }
 
       function saveTickets() {
         const ticket = document.getElementById('ticketInput').value.trim();
+        const sage = document.getElementById('sageCheckbox').checked;
         if (!ticket) {
           setStatus('saveStatus', 'Le nom du ticket est obligatoire.', 'error');
           return;
@@ -508,7 +592,8 @@
           })
           .saveDepartTickets({
             ticket: ticket,
-            selectedRows: rows
+            selectedRows: rows,
+            sage: sage
           });
       }
 
@@ -527,6 +612,11 @@
         setStep('selection');
       });
       document.getElementById('saveBtn').addEventListener('click', saveTickets);
+      document.getElementById('ticketInput').addEventListener('input', refreshRecapFrame);
+      document.getElementById('sageCheckbox').addEventListener('change', function () {
+        state.sage = this.checked;
+        refreshRecapFrame();
+      });
 
       document.getElementById('ticketInput').addEventListener('keydown', function (event) {
         if (event.key === 'Enter') {

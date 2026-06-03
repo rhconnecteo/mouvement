@@ -1,5 +1,6 @@
 const SHEET_ID = "1Jh_ZS3lYL-wt_UHU51Ium7FkPSOLrEURdf-AkIqy5Cc";
 const NOTIFICATION_EMAIL = "rhbiconnecteo@gmail.com";
+const APP_URL = "https://mouvement-rh.vercel.app";
 const DAILY_SUMMARY_EMAIL = "herizo.ramboamiarison@connecteo.mg";
 const DAILY_SUMMARY_CC = "Liantsoa@connecteo.mg,Tyfannie@connecteo.mg,Zélie@connecteo.mg";
 const DAILY_SUMMARY_RECIPIENTS = [NOTIFICATION_EMAIL, DAILY_SUMMARY_EMAIL];
@@ -122,6 +123,7 @@ function handleRequest(params) {
     if (type === "saveTickets") {
       const result = saveDepartTickets({
         ticket: params.ticket,
+        sage: params.sage,
         selectedRows: parseSelectedRows(params.selectedRows)
       });
 
@@ -298,8 +300,8 @@ function parseBooleanValue(value) {
 function sendNotificationEmail(type, payload) {
   try {
     const subject = type === 'depart'
-      ? `Départ enregistré - ${payload.matricule || ''} ${payload.nom || ''}`.trim()
-      : `Mouvement enregistré - ${payload.matricule || ''} ${payload.nom || ''}`.trim();
+      ? `Départ de collaborateur - ${payload.matricule || ''} ${payload.nom || ''}`.trim()
+      : `Mouvement de collaborateur - ${payload.matricule || ''} ${payload.nom || ''}`.trim();
 
     const bodyLines = type === 'depart'
       ? [
@@ -316,7 +318,9 @@ function sendNotificationEmail(type, payload) {
           `Raison: ${payload.raison || ''}`,
           `Login: ${payload.login || ''}`,
           `Mail Connecteo: ${payload.mailConnecteo || ''}`,
-          `Date d\'enregistrement: ${payload.insertedAt || ''}`
+          `Date d\'enregistrement: ${payload.insertedAt || ''}`,
+          '',
+          `Créer le ticket: ${APP_URL}`
         ]
       : [
           'Un mouvement vient d\'être enregistré.',
@@ -329,13 +333,26 @@ function sendNotificationEmail(type, payload) {
           `Nouveau poste: ${payload.nouveauPoste || ''}`,
           `Type de mouvement: ${payload.typeMvt || ''}`,
           `Raison: ${payload.raisonMvt || ''}`,
-          `Date d\'enregistrement: ${payload.insertedAt || ''}`
+          `Date d\'enregistrement: ${payload.insertedAt || ''}`,
+          '',
+          `Ouvrir l'application: ${APP_URL}`
         ];
+
+    const htmlBody = bodyLines
+      .map(line => {
+        if (!line) return '<br>';
+        if (line.indexOf(APP_URL) >= 0) {
+          return `<p><a href="${APP_URL}" target="_blank" rel="noopener noreferrer">${line.replace(`${APP_URL}`, 'mouvement-rh.vercel.app')}</a></p>`;
+        }
+        return `<p>${line}</p>`;
+      })
+      .join('');
 
     MailApp.sendEmail({
       to: NOTIFICATION_EMAIL,
       subject: subject,
-      body: bodyLines.join('\n')
+      body: bodyLines.join('\n'),
+      htmlBody: htmlBody
     });
   } catch (err) {
     Logger.log('Notification email failed: ' + err);
@@ -358,7 +375,7 @@ function sendTodayDepartSummaryEmail() {
     }
 
     const todayLabel = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
-    const subject = `Départs du jour - ${todayLabel} (${departs.length})`;
+    const subject = `Départ de collaborateur - Départs du jour - ${todayLabel} (${departs.length})`;
     const htmlBody = buildTodayDepartSummaryHtml(departs, todayLabel);
     const plainBody = buildTodayDepartSummaryPlainText(departs, todayLabel);
 
@@ -441,6 +458,7 @@ function getTodayDepartRows() {
       statut: String(getValue(row, 'Statut') || '').trim(),
       nom: String(getValue(row, 'Nom et Prénoms') || '').trim(),
       fonction: String(getValue(row, 'Fonction') || '').trim(),
+      motif: String(getValue(row, 'Motif de départ') || getValue(row, 'Motif du départ') || '').trim(),
       dateDepart: formatDate(getValue(row, 'Date de départ')) || ''
     });
   }
@@ -464,6 +482,10 @@ function buildTodayDepartSummaryPlainText(departs, todayLabel) {
       item.dateDepart
     ].join(' | '));
   });
+
+  lines.push('');
+  lines.push('Si vous souhaitez créer une référence de ticket pour ces départs, cliquez sur le lien ci-dessous pour accéder au site.');
+  lines.push(APP_URL);
 
   return lines.join('\n');
 }
@@ -513,6 +535,14 @@ function buildTodayDepartSummaryHtml(departs, todayLabel) {
                   </tbody>
                 </table>
                 <div style="margin-top:14px;font-size:12px;line-height:1.5;color:#64748b;">Ce message regroupe uniquement les lignes dont la Date d'insertion correspond à aujourd'hui.</div>
+                <div style="margin-top:16px;padding:14px 16px;border:1px solid #dbe3f0;background:#f8fbff;border-radius:6px;">
+                  <div style="font-size:13px;line-height:1.6;color:#1e293b;">
+                    Si vous souhaitez créer une référence de ticket pour ces départs, cliquez sur le lien ci-dessous pour accéder au site.
+                  </div>
+                  <div style="margin-top:10px;">
+                    <a href="${APP_URL}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 14px;background:#10254f;color:#ffffff;text-decoration:none;border-radius:4px;font-size:13px;font-weight:700;">Ouvrir le site de création de ticket</a>
+                  </div>
+                </div>
               </td>
             </tr>
           </table>
@@ -582,6 +612,7 @@ function readDepartRowsForTicketing() {
       raison: String(getValue(row, 'Raison de départ') || getValue(row, 'Raison du départ') || '').trim(),
       login: String(getValue(row, 'Login') || '').trim(),
       mailConnecteo: String(getValue(row, 'Mail connecteo') || getValue(row, 'Mail Connecteo') || '').trim(),
+      sage: parseBooleanValue(getValue(row, 'Sage')),
       ticket: ticketIndex >= 0 ? String(row[ticketIndex] || '').trim() : '',
       dateCreation: dateCreationIndex >= 0 ? formatDate(row[dateCreationIndex]) || '' : '',
       checking: parseBooleanValue(getValue(row, 'Checking'))
@@ -655,6 +686,7 @@ function updateCheckingState(payload) {
 function saveDepartTickets(payload) {
   try {
     const ticket = String(payload && payload.ticket ? payload.ticket : '').trim();
+    const sage = parseBooleanValue(payload && payload.sage);
     const selectedRows = Array.isArray(payload && payload.selectedRows) ? payload.selectedRows : [];
 
     if (!ticket) {
@@ -672,9 +704,10 @@ function saveDepartTickets(payload) {
 
     const ticketIndex = getHeaderIndex(headers, 'Ticket');
     const dateCreationIndex = getHeaderIndex(headers, 'Date de création');
+    const sageIndex = getHeaderIndex(headers, 'Sage');
 
-    if (ticketIndex < 0 || dateCreationIndex < 0) {
-      return { status: 'error', message: 'Les colonnes Ticket et Date de création doivent exister dans la feuille Départ.' };
+    if (ticketIndex < 0 || dateCreationIndex < 0 || sageIndex < 0) {
+      return { status: 'error', message: 'Les colonnes Ticket, Sage et Date de création doivent exister dans la feuille Départ.' };
     }
 
     const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
@@ -686,6 +719,7 @@ function saveDepartTickets(payload) {
       if (!allowedRows.has(numericRow)) return;
 
       sheet.getRange(numericRow, ticketIndex + 1).setValue(ticket);
+      sheet.getRange(numericRow, sageIndex + 1).setValue(sage);
       sheet.getRange(numericRow, dateCreationIndex + 1).setValue(today);
       const checkingIndex = getHeaderIndex(headers, 'Checking');
       if (checkingIndex >= 0) {
@@ -785,6 +819,7 @@ function getEntries() {
           mailConnecteo: String(getValue(data[i], 'Mail connecteo') || getValue(data[i], 'Mail Connecteo') || ''),
           ticket: String(getValue(data[i], 'Ticket') || '').trim(),
           dateCreation: formatDate(getValue(data[i], 'Date de création')) || '',
+          sage: parseBooleanValue(getValue(data[i], 'Sage')),
           checking: parseBooleanValue(getValue(data[i], 'Checking'))
         });
       }
