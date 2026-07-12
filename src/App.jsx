@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 const API_URL = import.meta.env.DEV
   ? '/apps-script'
-  : (import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzqqXySjIRvwF0BZvKtZ5VlxLFfeRXfn3RsIKYlPPpCrK3yW6GPdBf1w6vkzHk5wY5_/exec');
+  : (import.meta.env.VITE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbycBJSIQzLL-O9ZuBibwJ2pL1uKPk3KI7r4OUvRsJzqcpCN00HYS24p1xQSpNAQkoF9/exec');
 const HRBPS = ['Malala', 'Ravo', 'Koloina', 'Lanto', 'Carine', 'Chrissie', 'Mamonjisoa'];
 const MOTIFS_DEPART = [
   'Congé de maternité',
@@ -148,6 +148,8 @@ function App() {
   const [ticketSage, setTicketSage] = useState(false);
   const [ticketMessage, setTicketMessage] = useState('');
   const [isTicketSubmitting, setIsTicketSubmitting] = useState(false);
+  const [submitRecapMode, setSubmitRecapMode] = useState(null); // 'depart' or 'mouvement'
+  const [submitRecapData, setSubmitRecapData] = useState(null);
 
   const allFonctions = useMemo(
     () => Array.from(new Set(employes.map(emp => emp.fonction))).sort(),
@@ -700,6 +702,326 @@ function App() {
     submitRecord('mouvement', buildMouvementData());
   }
 
+  function generateRecapSrcDoc(mode, recordData, selectedEmployee) {
+    const today = new Date();
+    const todayLabel = today.toLocaleDateString('fr-FR', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    if (mode === 'depart') {
+      return `
+        <!DOCTYPE html>
+        <html lang="fr">
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              body {
+                margin: 0;
+                font-family: Arial, Helvetica, sans-serif;
+                color: #0f172a;
+                background: #f8fbff;
+              }
+              .wrap {
+                padding: 24px;
+              }
+              .banner {
+                background: #10254f;
+                color: #fff;
+                border-radius: 12px;
+                padding: 20px;
+                margin-bottom: 20px;
+              }
+              .banner h2 {
+                margin: 0 0 8px;
+                font-size: 22px;
+              }
+              .banner p {
+                margin: 0;
+                font-size: 14px;
+                opacity: 0.95;
+              }
+              .section {
+                background: #fff;
+                border: 1px solid #dbe3f0;
+                border-radius: 12px;
+                padding: 20px;
+                margin-bottom: 16px;
+              }
+              .section h3 {
+                margin: 0 0 16px;
+                font-size: 14px;
+                text-transform: uppercase;
+                color: #64748b;
+                letter-spacing: 0.05em;
+              }
+              .data-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 16px;
+              }
+              .data-item {
+                display: flex;
+                flex-direction: column;
+              }
+              .data-label {
+                font-size: 12px;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                margin-bottom: 6px;
+                font-weight: 700;
+              }
+              .data-value {
+                font-size: 15px;
+                color: #0f172a;
+                font-weight: 500;
+              }
+              .success-badge {
+                display: inline-block;
+                background: #dcfce7;
+                color: #166534;
+                padding: 8px 16px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 13px;
+                margin-top: 20px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="wrap">
+              <div class="banner">
+                <h2>✅ Départ Enregistré avec Succès</h2>
+                <p>Les données ont été ajoutées à la base de données</p>
+              </div>
+
+              <div class="section">
+                <h3>Informations du Collaborateur</h3>
+                <div class="data-grid">
+                  <div class="data-item">
+                    <div class="data-label">Matricule</div>
+                    <div class="data-value">${escapeHtml(recordData.matricule)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Nom et Prénoms</div>
+                    <div class="data-value">${escapeHtml(recordData.nom)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Fonction</div>
+                    <div class="data-value">${escapeHtml(recordData.fonction)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Rattachement</div>
+                    <div class="data-value">${escapeHtml(recordData.rattachement)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Statut</div>
+                    <div class="data-value">${escapeHtml(recordData.statut)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Login</div>
+                    <div class="data-value">${escapeHtml(recordData.login)}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section">
+                <h3>Détails du Départ</h3>
+                <div class="data-grid">
+                  <div class="data-item">
+                    <div class="data-label">HRBP</div>
+                    <div class="data-value">${escapeHtml(recordData.hrbp)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Date de Départ</div>
+                    <div class="data-value">${escapeHtml(formatDate(recordData.dateDepart))}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Motif</div>
+                    <div class="data-value">${escapeHtml(recordData.motif)}</div>
+                  </div>
+                </div>
+                <div class="data-item" style="margin-top: 16px;">
+                  <div class="data-label">Raison</div>
+                  <div class="data-value" style="white-space: pre-wrap;">${escapeHtml(recordData.raison)}</div>
+                </div>
+              </div>
+
+              <div class="section">
+                <h3>Timestamp</h3>
+                <div class="data-grid">
+                  <div class="data-item">
+                    <div class="data-label">Enregistré le</div>
+                    <div class="data-value">${todayLabel}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="success-badge">✓ Enregistrement validé</div>
+            </div>
+          </body>
+        </html>
+      `;
+    } else if (mode === 'mouvement') {
+      return `
+        <!DOCTYPE html>
+        <html lang="fr">
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              body {
+                margin: 0;
+                font-family: Arial, Helvetica, sans-serif;
+                color: #0f172a;
+                background: #f8fbff;
+              }
+              .wrap {
+                padding: 24px;
+              }
+              .banner {
+                background: #7c3aed;
+                color: #fff;
+                border-radius: 12px;
+                padding: 20px;
+                margin-bottom: 20px;
+              }
+              .banner h2 {
+                margin: 0 0 8px;
+                font-size: 22px;
+              }
+              .banner p {
+                margin: 0;
+                font-size: 14px;
+                opacity: 0.95;
+              }
+              .section {
+                background: #fff;
+                border: 1px solid #dbe3f0;
+                border-radius: 12px;
+                padding: 20px;
+                margin-bottom: 16px;
+              }
+              .section h3 {
+                margin: 0 0 16px;
+                font-size: 14px;
+                text-transform: uppercase;
+                color: #64748b;
+                letter-spacing: 0.05em;
+              }
+              .data-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 16px;
+              }
+              .data-item {
+                display: flex;
+                flex-direction: column;
+              }
+              .data-label {
+                font-size: 12px;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                margin-bottom: 6px;
+                font-weight: 700;
+              }
+              .data-value {
+                font-size: 15px;
+                color: #0f172a;
+                font-weight: 500;
+              }
+              .success-badge {
+                display: inline-block;
+                background: #e9d5ff;
+                color: #5b21b6;
+                padding: 8px 16px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 13px;
+                margin-top: 20px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="wrap">
+              <div class="banner">
+                <h2>✅ Mouvement Enregistré avec Succès</h2>
+                <p>Les données ont été ajoutées à la base de données</p>
+              </div>
+
+              <div class="section">
+                <h3>Informations du Collaborateur</h3>
+                <div class="data-grid">
+                  <div class="data-item">
+                    <div class="data-label">Matricule</div>
+                    <div class="data-value">${escapeHtml(recordData.matricule)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Nom et Prénoms</div>
+                    <div class="data-value">${escapeHtml(recordData.nom)}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section">
+                <h3>Ancien Poste</h3>
+                <div class="data-grid">
+                  <div class="data-item">
+                    <div class="data-label">Fonction</div>
+                    <div class="data-value">${escapeHtml(recordData.ancienPoste)}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section">
+                <h3>Détails du Mouvement</h3>
+                <div class="data-grid">
+                  <div class="data-item">
+                    <div class="data-label">HRBP</div>
+                    <div class="data-value">${escapeHtml(recordData.hrbp)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Date du Mouvement</div>
+                    <div class="data-value">${escapeHtml(formatDate(recordData.dateMvt))}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Type de Mouvement</div>
+                    <div class="data-value">${escapeHtml(recordData.typeMvt)}</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="data-label">Nouveau Poste</div>
+                    <div class="data-value">${escapeHtml(recordData.nouveauPoste)}</div>
+                  </div>
+                </div>
+                <div class="data-item" style="margin-top: 16px;">
+                  <div class="data-label">Raison du Mouvement</div>
+                  <div class="data-value" style="white-space: pre-wrap;">${escapeHtml(recordData.raisonMvt)}</div>
+                </div>
+              </div>
+
+              <div class="section">
+                <h3>Timestamp</h3>
+                <div class="data-grid">
+                  <div class="data-item">
+                    <div class="data-label">Enregistré le</div>
+                    <div class="data-value">${todayLabel}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="success-badge">✓ Enregistrement validé</div>
+            </div>
+          </body>
+        </html>
+      `;
+    }
+
+    return '';
+  }
+
   async function submitRecord(mode, recordData) {
     if (!mode || !recordData || isSubmitting) {
       return;
@@ -721,19 +1043,18 @@ function App() {
       const result = await response.json();
 
       if (result.status === 'success') {
-        await loadHistory();
-
-        const successMsg =
-          mode === 'depart'
-            ? '✅ Départ enregistré avec succès'
-            : '✅ Mouvement enregistré avec succès';
+        // ✅ Afficher le récapitulatif IMMÉDIATEMENT sans attendre
+        const recapSrcDoc = generateRecapSrcDoc(mode, recordData);
+        const recapTitle = mode === 'depart' 
+          ? 'Résumé du Départ' 
+          : 'Résumé du Mouvement';
         
-        setSuccessMessage(successMsg);
-        
-        // Auto-effacer le message après 4 secondes
-        setTimeout(() => {
-          setSuccessMessage('');
-        }, 4000);
+        setModalData({
+          title: recapTitle,
+          srcDoc: recapSrcDoc
+        });
+        setSubmitRecapMode(mode);
+        setModalMode('submitRecap');
         
         // Réinitialiser les formulaires
         if (mode === 'depart') {
@@ -742,6 +1063,11 @@ function App() {
           setMouvementForm(initialMouvementForm);
         }
         setSubmitErrors({});
+        
+        // ⚡ Charger l'historique en arrière-plan (sans bloquer l'interface)
+        setTimeout(() => {
+          loadHistory();
+        }, 500);
       } else {
         throw new Error(result.message || 'Erreur serveur');
       }
@@ -813,6 +1139,12 @@ function App() {
   function closeTicketRecapModal() {
     setModalMode(null);
     setModalData(null);
+  }
+
+  function closeSubmitRecapModal() {
+    setModalMode(null);
+    setModalData(null);
+    setSubmitRecapMode(null);
   }
 
   async function submitTicketBatch() {
@@ -2108,14 +2440,32 @@ function App() {
               </div>
 
               <div className="form-footer">
-                <button type="submit">
-                  <i className="fas fa-paper-plane" /> Envoyer
+                <button type="submit" disabled={isSubmitting}>
+                  <i className="fas fa-paper-plane" /> {isSubmitting ? 'Enregistrement...' : 'Envoyer'}
                 </button>
               </div>
             </form>
           )}
         </div>
       </div>
+
+      {modalMode === 'submitRecap' && modalData ? (
+        <div className="modal-overlay" onClick={closeSubmitRecapModal}>
+          <div className="modal-content" onClick={event => event.stopPropagation()} style={{ width: 'min(100%, 1280px)', maxWidth: '1280px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>{modalData.title}</h3>
+            <iframe
+              title="Récapitulatif de l'enregistrement"
+              srcDoc={modalData.srcDoc}
+              style={{ width: '100%', height: '72vh', minHeight: 680, border: '1px solid #dbe3f0', borderRadius: 16, background: '#fff' }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16, flexWrap: 'wrap' }}>
+              <button type="button" className="nav-btn active" onClick={closeSubmitRecapModal}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {modalMode === 'ticketRecap' && modalData ? (
         <div className="modal-overlay" onClick={closeTicketRecapModal}>

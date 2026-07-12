@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const appsScriptTarget = "https://script.google.com/macros/s/AKfycbwwKFVC_l4kKE8uZ9MU1CpUhCVICxoUZRyXX6OPmPE_2XI3TTzzPKByUmxp8Etsdt8Y/exec";
+const appsScriptTarget = "https://script.google.com/macros/s/AKfycbycBJSIQzLL-O9ZuBibwJ2pL1uKPk3KI7r4OUvRsJzqcpCN00HYS24p1xQSpNAQkoF9/exec";
 
 export default defineConfig({
   plugins: [react()],
