@@ -671,9 +671,27 @@ function updateCheckingState(payload) {
 
     sheet.getRange(rowNumber, checkingIndex + 1).setValue(checking);
 
+    const dateValue = checking ? Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy') : '';
+    const dateHeaderNames = ['date checking', 'date de checking', 'date check', 'date de verification', 'date verification', 'date de vérification'];
+    let dateIndex = -1;
+    dateHeaderNames.forEach(headerName => {
+      if (dateIndex < 0) {
+        dateIndex = getHeaderIndex(headers, headerName);
+      }
+    });
+
+    if (dateIndex < 0) {
+      dateIndex = checkingIndex + 1;
+      const headerCell = sheet.getRange(1, dateIndex + 1);
+      headerCell.setValue('Date checking');
+    }
+
+    sheet.getRange(rowNumber, dateIndex + 1).setValue(dateValue);
+
     return {
       status: 'success',
-      message: checking ? 'Ligne marquée comme traitée.' : 'Ligne marquée comme non traitée.'
+      message: checking ? 'Ligne marquée comme traitée.' : 'Ligne marquée comme non traitée.',
+      checkingDate: dateValue
     };
   } catch (err) {
     return {
@@ -820,7 +838,8 @@ function getEntries() {
           ticket: String(getValue(data[i], 'Ticket') || '').trim(),
           dateCreation: formatDate(getValue(data[i], 'Date de création')) || '',
           sage: parseBooleanValue(getValue(data[i], 'Sage')),
-          checking: parseBooleanValue(getValue(data[i], 'Checking'))
+          checking: parseBooleanValue(getValue(data[i], 'Checking')),
+          checkingDate: formatDate(getValue(data[i], 'Date checking') || getValue(data[i], 'Date de checking') || getValue(data[i], 'Date check') || getValue(data[i], 'Date de verification') || getValue(data[i], 'Date verification') || getValue(data[i], 'Date de vérification')) || ''
         });
       }
     }
@@ -853,7 +872,8 @@ function getEntries() {
           nouveauPoste: getValue2(data2[i], "Nouveau poste") || getValue2(data2[i], "Nouveau Poste") || '',
           typeMvt: getValue2(data2[i], "Type de mouvement") || getValue2(data2[i], "Type du mouvement") || getValue2(data2[i], "Type du MVT") || getValue2(data2[i], "Type MVT") || '',
           raisonMvt: getValue2(data2[i], "Raison du mouvement") || getValue2(data2[i], "Raison de mouvement") || getValue2(data2[i], "Raison du MVT") || getValue2(data2[i], "Raison MVT") || '',
-          checking: parseBooleanValue(getValue2(data2[i], 'Checking'))
+          checking: parseBooleanValue(getValue2(data2[i], 'Checking')),
+          checkingDate: formatDate(getValue2(data2[i], 'Date checking') || getValue2(data2[i], 'Date de checking') || getValue2(data2[i], 'Date check') || getValue2(data2[i], 'Date de verification') || getValue2(data2[i], 'Date verification') || getValue2(data2[i], 'Date de vérification')) || ''
         });
       }
     }

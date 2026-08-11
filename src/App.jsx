@@ -111,7 +111,41 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function App() {
+const DATA_CACHE_KEY = 'mouvement-rh-data-cache';
+const HISTORY_CACHE_KEY = 'mouvement-rh-history-cache';
+const CACHE_TTL_MS = 2 * 60 * 1000;
+
+function readCache(key) {
+  if (typeof window === 'undefined' || !window.sessionStorage) return null;
+
+  try {
+    const item = window.sessionStorage.getItem(key);
+    if (!item) return null;
+
+    const parsed = JSON.parse(item);
+    if (!parsed || typeof parsed.savedAt !== 'number') return null;
+    if (Date.now() - parsed.savedAt > CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed.value;
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeCache(key, value) {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), value }));
+  } catch (error) {
+    // Ignore cache write failures
+  }
+}
+
+function App({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('depart');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [employes, setEmployes] = useState([]);
@@ -136,6 +170,7 @@ function App() {
     dateTo: ''
   });
   const [tableauFilters, setTableauFilters] = useState({
+    matricule: '',
     fonction: '',
     rattachement: '',
     dateFrom: '',
@@ -406,8 +441,13 @@ function App() {
 
   useEffect(() => {
     loadData();
-    loadHistory();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'kpi' || activeTab === 'tableau' || activeTab === 'ticket') {
+      loadHistory();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (dataLoaded) {
@@ -418,6 +458,14 @@ function App() {
   async function loadData() {
     setIsLoading(true);
     setLoadError('');
+
+    const cachedData = readCache(DATA_CACHE_KEY);
+    if (cachedData) {
+      setEmployes((cachedData.employes || []).map(normalizeEmployee).filter(Boolean));
+      setDataLoaded(true);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const params = new URLSearchParams();
@@ -439,7 +487,9 @@ function App() {
         throw new Error(data.message || 'Erreur serveur');
       }
 
-      setEmployes((data.employes || []).map(normalizeEmployee).filter(Boolean));
+      const normalizedEmployes = (data.employes || []).map(normalizeEmployee).filter(Boolean);
+      writeCache(DATA_CACHE_KEY, { employes: normalizedEmployes });
+      setEmployes(normalizedEmployes);
       setDataLoaded(true);
     } catch (error) {
       setLoadError(error.message || 'Impossible de charger les données');
@@ -450,6 +500,15 @@ function App() {
   }
 
   async function loadHistory() {
+    const cachedHistory = readCache(HISTORY_CACHE_KEY);
+    if (cachedHistory) {
+      setSheetEntries({
+        depart: (cachedHistory.depart || []).map(record => ({ ...record, checking: parseBoolean(record.checking), checkingDate: record.checkingDate || '' })),
+        mouvement: (cachedHistory.mouvement || []).map(record => ({ ...record, checking: parseBoolean(record.checking), checkingDate: record.checkingDate || '' }))
+      });
+      return;
+    }
+
     setIsHistoryLoading(true);
     setHistoryError('');
 
@@ -476,19 +535,24 @@ function App() {
       const normalizedDepartRows = (data.depart || []).map((record, index) => ({
         ...record,
         checking: parseBoolean(record.checking),
+        checkingDate: record.checkingDate || '',
         rowNumber: record.rowNumber ?? index + 2
       }));
 
       const normalizedMouvementRows = (data.mouvement || []).map((record, index) => ({
         ...record,
         checking: parseBoolean(record.checking),
+        checkingDate: record.checkingDate || '',
         rowNumber: record.rowNumber ?? index + 2
       }));
 
-      setSheetEntries({
+      const nextHistory = {
         depart: normalizedDepartRows,
         mouvement: normalizedMouvementRows
-      });
+      };
+
+      writeCache(HISTORY_CACHE_KEY, nextHistory);
+      setSheetEntries(nextHistory);
     } catch (error) {
       setHistoryError(error.message || 'Impossible de charger l\'historique');
       setSheetEntries({ depart: [], mouvement: [] });
@@ -498,24 +562,85 @@ function App() {
   }
 
   async function updateCheckingState(sheetName, rowNumber, checking) {
+    const normalizedRowNumber = Number(rowNumber);
+    const nextCheckingDate = checking ? formatDate(new Date()) : '';
+
+    setSheetEntries(prev => {
+      if (sheetName === 'Départ') {
+        return {
+          ...prev,
+          depart: prev.depart.map(record => Number(record.rowNumber) === normalizedRowNumber
+            ? { ...record, checking, checkingDate: nextCheckingDate }
+            : record)
+        };
+      }
+
+      return {
+        ...prev,
+        mouvement: prev.mouvement.map(record => Number(record.rowNumber) === normalizedRowNumber
+          ? { ...record, checking, checkingDate: nextCheckingDate }
+          : record)
+      };
+    });
+
     const params = new URLSearchParams();
     params.append('type', 'updateChecking');
     params.append('sheetName', sheetName);
     params.append('rowNumber', String(rowNumber));
     params.append('checking', checking ? 'true' : 'false');
 
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: params.toString()
-    });
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: params.toString()
+      });
 
-    const data = await response.json();
-    if (!response.ok || data.status !== 'success') {
-      throw new Error((data && data.message) || `HTTP ${response.status}`);
+      const data = await response.json();
+      if (!response.ok || data.status !== 'success') {
+        throw new Error((data && data.message) || `HTTP ${response.status}`);
+      }
+
+      const serverDate = data.checkingDate ? formatDate(data.checkingDate) : '';
+      setSheetEntries(prev => {
+        if (sheetName === 'Départ') {
+          return {
+            ...prev,
+            depart: prev.depart.map(record => Number(record.rowNumber) === normalizedRowNumber
+              ? { ...record, checking, checkingDate: serverDate || nextCheckingDate }
+              : record)
+          };
+        }
+
+        return {
+          ...prev,
+          mouvement: prev.mouvement.map(record => Number(record.rowNumber) === normalizedRowNumber
+            ? { ...record, checking, checkingDate: serverDate || nextCheckingDate }
+            : record)
+        };
+      });
+
+      return data;
+    } catch (error) {
+      setSheetEntries(prev => {
+        if (sheetName === 'Départ') {
+          return {
+            ...prev,
+            depart: prev.depart.map(record => Number(record.rowNumber) === normalizedRowNumber
+              ? { ...record, checking: !checking, checkingDate: '' }
+              : record)
+          };
+        }
+
+        return {
+          ...prev,
+          mouvement: prev.mouvement.map(record => Number(record.rowNumber) === normalizedRowNumber
+            ? { ...record, checking: !checking, checkingDate: '' }
+            : record)
+        };
+      });
+      throw error;
     }
-
-    await loadHistory();
   }
 
   async function testBackend() {
@@ -1803,6 +1928,7 @@ function App() {
 
   function renderTableauContent() {
     const hasTableauFilters = Boolean(
+      tableauFilters.matricule ||
       tableauFilters.fonction ||
       tableauFilters.rattachement ||
       tableauFilters.dateFrom ||
@@ -1831,9 +1957,14 @@ function App() {
     };
 
     const filteredDepartRecords = sheetEntries.depart.filter(record => {
+      const matriculeValue = String(record.matricule || '').toLowerCase();
       const fonctionValue = String(record.fonction || '').toLowerCase();
       const rattachementValue = String(record.rattachement || '').toLowerCase();
       const checkingValue = Boolean(record.checking);
+
+      if (tableauFilters.matricule && !matriculeValue.includes(tableauFilters.matricule.toLowerCase())) {
+        return false;
+      }
 
       if (tableauFilters.fonction && !fonctionValue.includes(tableauFilters.fonction.toLowerCase())) {
         return false;
@@ -1855,9 +1986,14 @@ function App() {
     });
 
     const filteredMouvementRecords = sheetEntries.mouvement.filter(record => {
+      const matriculeValue = String(record.matricule || '').toLowerCase();
       const fonctionValue = String(record.ancienPoste || '').toLowerCase();
       const rattachementValue = String(record.rattachement || '').toLowerCase();
       const checkingValue = Boolean(record.checking);
+
+      if (tableauFilters.matricule && !matriculeValue.includes(tableauFilters.matricule.toLowerCase())) {
+        return false;
+      }
 
       if (tableauFilters.fonction && !fonctionValue.includes(tableauFilters.fonction.toLowerCase())) {
         return false;
@@ -1908,6 +2044,16 @@ function App() {
             <div className="kpi-dashboard-section">
               <h4><i className="fas fa-filter" /> Filtres</h4>
               <div className="kpi-filter-grid">
+                <div className="kpi-filter-field">
+                  <label htmlFor="tableau-matricule">Matricule :</label>
+                  <input
+                    id="tableau-matricule"
+                    type="text"
+                    placeholder="Rechercher par matricule…"
+                    value={tableauFilters.matricule}
+                    onChange={e => setTableauFilters(prev => ({ ...prev, matricule: e.target.value }))}
+                  />
+                </div>
                 <div className="kpi-filter-field">
                   <label htmlFor="tableau-fonction">Fonction :</label>
                   <input
@@ -1961,7 +2107,7 @@ function App() {
               </div>
               <button
                 className="kpi-filter-clear"
-                onClick={() => setTableauFilters({ fonction: '', rattachement: '', dateFrom: '', dateTo: '', checking: '' })}
+                onClick={() => setTableauFilters({ matricule: '', fonction: '', rattachement: '', dateFrom: '', dateTo: '', checking: '' })}
               >
                 <i className="fas fa-times" /> Réinitialiser filtres
               </button>
@@ -1985,6 +2131,7 @@ function App() {
                         <th>Motif</th>
                         <th>Raison</th>
                         <th>Checking</th>
+                        <th>Date checking</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2012,6 +2159,7 @@ function App() {
                               })}
                             />
                           </td>
+                          <td>{record.checkingDate ? formatDate(record.checkingDate) : ''}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2038,6 +2186,7 @@ function App() {
                         <th>Type</th>
                         <th>Raison</th>
                         <th>Checking</th>
+                        <th>Date checking</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2065,6 +2214,7 @@ function App() {
                               })}
                             />
                           </td>
+                          <td>{record.checkingDate ? formatDate(record.checkingDate) : ''}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2128,6 +2278,17 @@ function App() {
           <span>Ticket</span>
         </button>
       </nav>
+      <div style={{ marginTop: 'auto', padding: 16 }}>
+        <button
+          className="nav-btn"
+          onClick={() => {
+            try { if (onLogout) onLogout(); } catch (e) { console.error(e); }
+          }}
+        >
+          <i className="fas fa-power-off" />
+          <span>Déconnexion</span>
+        </button>
+      </div>
     </div>
 
     <div className="main-content">
