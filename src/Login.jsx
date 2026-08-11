@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 const USERS = [
-  { username: 'admin', password: 'admin123', displayName: 'Administrateur' },
+  { username: 'HRBP_CONNECTEO', password: 'offboarding', displayName: 'Administrateur' },
   { username: 'user', password: 'user123', displayName: 'Utilisateur' }
 ];
 
@@ -9,7 +9,6 @@ export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +23,6 @@ export default function Login({ onLogin }) {
 
     setLoading(true);
 
-    // Petit délai simulé pour un retour visuel plus naturel
     setTimeout(() => {
       const found = USERS.find(u => u.username === username && u.password === password);
       setLoading(false);
@@ -42,144 +40,326 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-root">
       <style>{`
-        .login-root{
-          min-height:100vh;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          padding:24px;
-          background:
-            radial-gradient(circle at 15% 20%, rgba(255,255,255,0.18), transparent 45%),
-            radial-gradient(circle at 85% 80%, rgba(255,255,255,0.12), transparent 40%),
-            linear-gradient(160deg, #0ABAB5 0%, #0A8F9C 55%, #06616F 100%);
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@400;500;600&display=swap');
+
+        .login-root {
+          all: unset;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          min-height: 100vh !important;
+          min-height: 100dvh !important;
+          width: 100% !important;
+          padding: 24px 20px !important;
+          box-sizing: border-box !important;
+          background: linear-gradient(160deg, #0ABAB5 0%, #08a29d 45%, #06616F 100%) !important;
+          font-family: 'Jost', -apple-system, sans-serif !important;
+          overflow: auto !important;
         }
-        .login-card{
-          width:400px;
-          max-width:100%;
-          height: 400px;
-          background:rgba(255,255,255,0.94);
-          backdrop-filter: blur(10px);
-          border-radius:6px;
-          padding:34px 32px;
-          color:#0f2e2c;
-          box-shadow:0 20px 50px rgba(4,40,45,0.35), 0 2px 6px rgba(4,40,45,0.12);
-          border:1px solid rgba(255,255,255,0.6);
+
+        .login-root .login-frame,
+        .login-root .login-card,
+        .login-root .login-card * {
+          box-sizing: border-box !important;
         }
-        .login-brand{display:flex;align-items:center;gap:14px;margin-bottom:24px}
-        .brand-logo{
-          width:52px;height:52px;border-radius:4px;
-          background:linear-gradient(135deg,#0ABAB5,#06616F);
-          display:flex;align-items:center;justify-content:center;
-          font-weight:800;color:#fff;font-size:17px;
-          box-shadow:0 6px 16px rgba(10,186,181,0.35);
+
+        .login-root .login-frame {
+          width: min(340px, 100%) !important;
+          max-height: 460px !important;
+          position: relative !important;
+          padding: 12px !important;
+          margin: auto !important;
         }
-        .brand-title{font-size:19px;font-weight:700;margin:0;color:#0f2e2c;border-bottom:none;padding-bottom:0}
-        .brand-sub{font-size:13px;color:#5b7d7b;margin:2px 0 0}
-        .form-row{margin-bottom:16px}
-        .form-label{display:block;font-size:13px;font-weight:600;color:#2a4b49;margin-bottom:6px}
-        .text-input{
-          width:100%;padding:11px 13px;border-radius:4px;
-          border:1.5px solid #dde8e7;background:#f7fbfb;color:#0f2e2c;
-          outline:none;font-size:14px;transition:border-color .15s, box-shadow .15s;
-          box-sizing:border-box;
+
+        .login-root .login-frame::before,
+        .login-root .login-frame::after {
+          content: '' !important;
+          position: absolute !important;
+          width: 18px !important;
+          height: 18px !important;
+          border-color: #F3D9CE !important;
         }
-        .text-input::placeholder{color:#9fb3b1}
-        .text-input:focus{
-          border-color:#0ABAB5;
-          box-shadow:0 0 0 4px rgba(10,186,181,0.15);
-          background:#fff;
+        .login-root .login-frame::before { top: 0 !important; left: 0 !important; border-top: 2px solid !important; border-left: 2px solid !important; }
+        .login-root .login-frame::after { bottom: 0 !important; right: 0 !important; border-bottom: 2px solid !important; border-right: 2px solid !important; }
+
+        .login-root .login-card {
+          width: 100% !important;
+          height: auto !important;
+          min-height: 0 !important;
+          max-height: none !important;
+          background: #FFFFFF !important;
+          border: 1px solid rgba(6,97,111,0.14) !important;
+          border-radius: 14px !important;
+          box-shadow: 0 20px 40px rgba(4,40,45,0.28) !important;
+          position: relative !important;
+          overflow: hidden !important;
+          isolation: isolate !important;
+          font-family: 'Jost', -apple-system, sans-serif !important;
+          color: #0B3D3B !important;
+          letter-spacing: 0.2px !important;
+          margin: 0 !important;
+          padding: 0 !important;
         }
-        .actions{display:flex;align-items:center;justify-content:flex-end;margin-top:20px}
-        .btn-primary{
-          width:100%;
-          background:linear-gradient(90deg,#0ABAB5,#06616F);
-          color:#fff;padding:12px 14px;border-radius:4px;border:none;
-          cursor:pointer;font-weight:700;font-size:14px;
-          transition:transform .1s, box-shadow .15s, opacity .15s;
-          box-shadow:0 8px 20px rgba(10,186,181,0.3);
+
+        .login-root .login-card form {
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 0 !important;
+          max-width: none !important;
+          width: 100% !important;
+          background: transparent !important;
+          border-radius: 0 !important;
+          padding: 0 !important;
+          box-shadow: none !important;
+          min-height: auto !important;
+          border: none !important;
         }
-        .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 24px rgba(10,186,181,0.4)}
-        .btn-primary:active:not(:disabled){transform:translateY(0)}
-        .btn-primary:disabled{opacity:0.7;cursor:not-allowed}
-        .hint{font-size:12px;color:#6d908e}
-        .error-msg{
-          background:#fdecec;color:#b3261e;border:1px solid #f6c9c6;
-          padding:9px 11px;border-radius:4px;margin-top:12px;font-size:13px;
-          display:flex;align-items:center;gap:6px;
+
+        .login-root .login-card h3,
+        .login-root .login-card h2,
+        .login-root .login-card p {
+          color: inherit !important;
+          margin: 0 !important;
+          border-bottom: none !important;
+          padding-bottom: 0 !important;
         }
-        .helpers{display:flex;align-items:center;gap:10px;margin-top:14px}
-        .toggle-pass{
-          position:absolute;right:6px;top:50%;transform:translateY(-50%);
-          border:none;background:transparent;color:#0A8F9C;cursor:pointer;
-          font-size:12px;font-weight:600;padding:6px 8px;border-radius:4px;
+
+        .login-root .login-card input,
+        .login-root .login-card button,
+        .login-root .login-card label {
+          font: inherit !important;
         }
-        .toggle-pass:hover{background:rgba(10,186,181,0.1)}
+
+        .login-root .ribbon {
+          position: relative !important;
+          height: 7px !important;
+          background: linear-gradient(90deg, #0ABAB5, #06616F) !important;
+        }
+
+        .login-root .bow {
+          position: absolute !important;
+          top: 0 !important;
+          left: 50% !important;
+          transform: translate(-50%, -1px) !important;
+          width: 38px !important;
+          height: 20px !important;
+          z-index: 2 !important;
+        }
+
+        .login-root .login-body {
+          position: relative !important;
+          padding: 26px 26px 22px !important;
+        }
+
+        .login-root .login-brand { text-align: center !important; margin-bottom: 18px !important; }
+        .login-root .brand-mark {
+          width: 34px !important;
+          height: 34px !important;
+          margin: 0 auto 10px !important;
+          background: #0ABAB5 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          font-family: 'Cormorant Garamond', serif !important;
+          font-weight: 600 !important;
+          color: #fff !important;
+          font-size: 15px !important;
+        }
+        .login-root .brand-title {
+          font-family: 'Cormorant Garamond', serif !important;
+          font-size: 22px !important;
+          font-weight: 600 !important;
+          margin: 0 0 4px !important;
+          color: #0B3D3B !important;
+          letter-spacing: 0.3px !important;
+          border: none !important;
+          text-decoration: none !important;
+          padding: 0 !important;
+        }
+        .login-root .brand-sub {
+          font-size: 11px !important;
+          color: #7C9997 !important;
+          margin: 0 !important;
+          letter-spacing: 0.6px !important;
+          text-transform: uppercase !important;
+        }
+
+        .login-root .form-row { margin-bottom: 12px !important; }
+        .login-root .form-label {
+          display: block !important;
+          font-size: 11px !important;
+          font-weight: 600 !important;
+          color: #0B3D3B !important;
+          margin-bottom: 6px !important;
+          letter-spacing: 0.8px !important;
+          text-transform: uppercase !important;
+        }
+        .login-root .text-input {
+          width: 100% !important;
+          padding: 10px 12px !important;
+          border: none !important;
+          border-bottom: 1.5px solid #DCE9E8 !important;
+          border-radius: 0 !important;
+          background: #F5FAFA !important;
+          color: #0B3D3B !important;
+          outline: none !important;
+          font-size: 13.5px !important;
+          font-family: 'Jost', sans-serif !important;
+          transition: border-color .15s, background .15s !important;
+          appearance: none !important;
+          -webkit-appearance: none !important;
+        }
+        .login-root .text-input::placeholder { color: #A9BFBD !important; }
+        .login-root .text-input:focus {
+          border-color: #0ABAB5 !important;
+          background: #EFFAF9 !important;
+        }
+
+        .login-root .pw-wrap { position: relative !important; }
+        .login-root .toggle-pass {
+          position: absolute !important;
+          right: 0 !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          border: none !important;
+          border-left: 1.5px solid #DCE9E8 !important;
+          background: transparent !important;
+          border-radius: 0 !important;
+          color: #0A8F9C !important;
+          cursor: pointer !important;
+          font-size: 10px !important;
+          font-weight: 600 !important;
+          letter-spacing: 0.5px !important;
+          text-transform: uppercase !important;
+          padding: 10px 10px !important;
+        }
+        .login-root .toggle-pass:hover { background: #EFFAF9 !important; }
+
+        .login-root .error-msg {
+          background: #FBEAF0 !important;
+          color: #993556 !important;
+          border-left: 3px solid #D4537E !important;
+          border-radius: 0 !important;
+          padding: 9px 11px !important;
+          margin-top: 2px !important;
+          margin-bottom: 12px !important;
+          font-size: 12px !important;
+        }
+
+        .login-root .btn-primary {
+          width: 100% !important;
+          background: #0B3D3B !important;
+          border-radius: 0 !important;
+          color: #fff !important;
+          padding: 12px !important;
+          border: none !important;
+          cursor: pointer !important;
+          font-weight: 600 !important;
+          font-size: 12px !important;
+          letter-spacing: 1.5px !important;
+          text-transform: uppercase !important;
+          font-family: 'Jost', sans-serif !important;
+          transition: background .15s, opacity .15s !important;
+        }
+        .login-root .btn-primary:hover:not(:disabled) { background: #06616F !important; }
+        .login-root .btn-primary:disabled { opacity: 0.65 !important; cursor: not-allowed !important; }
+
+        .login-root .login-footer {
+          text-align: center !important;
+          margin-top: 14px !important;
+          font-size: 10.5px !important;
+          color: #9FB3B1 !important;
+          letter-spacing: 0.4px !important;
+        }
+
+        @media (max-width: 480px) {
+          .login-root {
+            padding: 14px 12px !important;
+          }
+
+          .login-root .login-frame {
+            width: 100% !important;
+            padding: 8px !important;
+          }
+
+          .login-root .login-body {
+            padding: 20px 16px 18px !important;
+          }
+
+          .login-root .brand-title {
+            font-size: 20px !important;
+          }
+
+          .login-root .brand-sub {
+            font-size: 10px !important;
+          }
+        }
       `}</style>
 
-      <div className="login-card" role="dialog" aria-label="Formulaire de connexion">
-        <div className="login-brand">
-          <div className="brand-logo">MV</div>
-          <div>
-            <h3 className="brand-title">Mouvement RH</h3>
-            <p className="brand-sub">Accédez à la gestion des départs et mouvements</p>
+      <div className="login-frame">
+        <div className="login-card" role="dialog" aria-label="Formulaire de connexion">
+          <div className="ribbon" />
+          <svg className="bow" viewBox="0 0 46 26" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M23 14 C23 14 10 2 4 6 C-2 10 8 20 23 14 Z" fill="#F3D9CE" />
+            <path d="M23 14 C23 14 36 2 42 6 C48 10 38 20 23 14 Z" fill="#F3D9CE" />
+            <circle cx="23" cy="13" r="4.5" fill="#0B3D3B" />
+          </svg>
+
+          <div className="login-body">
+            <div className="login-brand">
+              <div className="brand-mark">MV</div>
+              <h3 className="brand-title">Mouvement RH</h3>
+              <p className="brand-sub">Départs & mouvements</p>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="form-row">
+                <label className="form-label" htmlFor="username">Utilisateur</label>
+                <input
+                  id="username"
+                  autoFocus
+                  className="text-input"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder="votre identifiant"
+                  autoComplete="username"
+                />
+              </div>
+
+              <div className="form-row">
+                <label className="form-label" htmlFor="password">Mot de passe</label>
+                <div className="pw-wrap">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    className="text-input"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    style={{ paddingRight: 84 }}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="toggle-pass"
+                    onClick={() => setShowPassword(s => !s)}
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  >
+                    {showPassword ? 'Masquer' : 'Afficher'}
+                  </button>
+                </div>
+              </div>
+
+              {error ? <div className="error-msg">{error}</div> : null}
+
+              <button className="btn-primary" type="submit" disabled={loading}>
+                {loading ? 'Connexion…' : 'Se connecter'}
+              </button>
+            </form>
+
+            <p className="login-footer">Espace réservé au personnel autorisé</p>
           </div>
         </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-row">
-            <label className="form-label" htmlFor="username">Utilisateur</label>
-            <input
-              id="username"
-              autoFocus
-              className="text-input"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="votre identifiant"
-              autoComplete="username"
-            />
-          </div>
-
-          <div className="form-row">
-            <label className="form-label" htmlFor="password">Mot de passe</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                className="text-input"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                style={{ paddingRight: 68 }}
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                className="toggle-pass"
-                onClick={() => setShowPassword(s => !s)}
-                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-              >
-                {showPassword ? 'Masquer' : 'Afficher'}
-              </button>
-            </div>
-          </div>
-
-          <div className="helpers">
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
-              <span className="hint">Se souvenir de moi</span>
-            </label>
-            <div style={{ marginLeft: 'auto' }} className="hint">Ex: admin / admin123</div>
-          </div>
-
-          {error ? <div className="error-msg">{error}</div> : null}
-
-          <div className="actions">
-            <button className="btn-primary" type="submit" disabled={loading}>
-              {loading ? 'Connexion…' : 'Se connecter'}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
