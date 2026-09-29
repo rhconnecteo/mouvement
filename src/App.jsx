@@ -17,6 +17,23 @@ const MOTIFS_DEPART = [
   'Fin de projet',
   'Fin de campagne'
 ];
+const RAISONS_DEMISSION = [
+  'Raisons personnelles / familiales',
+  'Nouvelle opportunité / Évolution professionnelle',
+  'Santé',
+  'Études / Formation',
+  'Rémunération / Conditions de travail'
+];
+const RAISONS_LICENCIEMENT = [
+  'Vol',
+  'Fraude',
+  'Harcèlement',
+  'Insubordination',
+  'Absences injustifiées',
+  'Faute professionnelle grave',
+  'Non-respect des règles / procédures',
+  'Insuffisance professionnelle'
+];
 const TYPE_MOUVEMENT = [
   'Basculement CDI',
   'Basculement CDD',
@@ -689,6 +706,10 @@ function App({ user, onLogout }) {
 
   function handleDepartFieldChange(field, value) {
     setDepartForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  function handleDepartMotifChange(value) {
+    setDepartForm(prev => ({ ...prev, motif: value, raison: '' }));
   }
 
   function handleMouvementFieldChange(field, value) {
@@ -2449,7 +2470,7 @@ function App({ user, onLogout }) {
                       <select
                         id="motif"
                         value={departForm.motif}
-                        onChange={event => handleDepartFieldChange('motif', event.target.value)}
+                        onChange={event => handleDepartMotifChange(event.target.value)}
                         required
                       >
                         <option value="">-- Choisir un motif --</option>
@@ -2464,16 +2485,37 @@ function App({ user, onLogout }) {
 
                     <div className="field-block field-full">
                       <label htmlFor="raison">
-                        Raison <span style={{ color: 'red' }}>*</span>
+                        Raison {(departForm.motif === 'Démission' || departForm.motif === 'Licenciement') && (
+                          <span style={{ color: 'red' }}>*</span>
+                        )}
                       </label>
-                      <textarea
+                      <select
                         id="raison"
-                        placeholder="Détails de la raison"
                         value={departForm.raison}
                         onChange={event => handleDepartFieldChange('raison', event.target.value)}
-                      />
+                      >
+                        <option value="">
+                          {departForm.motif === 'Démission' || departForm.motif === 'Licenciement'
+                            ? '-- Choisir une raison --'
+                            : '-- Non applicable --'}
+                        </option>
+                        {(departForm.motif === 'Démission'
+                          ? RAISONS_DEMISSION
+                          : departForm.motif === 'Licenciement'
+                          ? RAISONS_LICENCIEMENT
+                          : []
+                        ).map(raison => (
+                          <option key={raison} value={raison}>
+                            {raison}
+                          </option>
+                        ))}
+                      </select>
                       <div style={{ fontSize: 12, color: submitErrors.raison ? '#dc3545' : '#666', marginTop: 5 }}>
-                        {submitErrors.raison ? submitErrors.raison : '* Obligatoire pour Démission et Licenciement'}
+                        {submitErrors.raison
+                          ? submitErrors.raison
+                          : departForm.motif === 'Démission' || departForm.motif === 'Licenciement'
+                          ? '* Obligatoire pour Démission et Licenciement'
+                          : 'Facultatif pour ce motif'}
                       </div>
                     </div>
                   </>
